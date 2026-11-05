@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Capas</title>
+<style>
+:root{
+  --bg:#0e0f11; --panel:#17191c; --panel2:#202328; --line:#2c3036;
+  --tx:#ecebe8; --mut:#8d9198; --acc:#c9a46a; --acc2:#e2c08a; --danger:#d0705c;
+  --piel:#fad7c8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);
+  font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;user-select:none}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);
+  border-radius:12px;padding:10px 14px;cursor:pointer}
+button:active{transform:scale(.97)}
+button.on{background:var(--acc);color:#1a1408;border-color:var(--acc)}
+button.big{width:100%;padding:16px;font-size:17px;font-weight:600}
+button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
+.hide{display:none!important}
+
+/* inicio */
+#inicio{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:28px;gap:14px}
+#inicio h1{margin:0 0 2px;font-size:34px;letter-spacing:-.5px}
+#inicio p{margin:0 0 18px;color:var(--mut)}
+.logo{display:flex;gap:6px;margin-bottom:14px}
+.logo i{display:block;width:22px;border-radius:5px}
+
+/* editor */
+#editor{position:absolute;inset:0;display:flex;flex-direction:column}
+#top{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+#top .t{flex:1;font-weight:600}
+#top button{padding:7px 11px;border-radius:10px;font-size:14px}
+#lienzo{flex:1;position:relative;overflow:hidden;touch-action:none;background:#fff}
+#lienzo canvas{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:auto}
+#aviso{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:#000c;color:#fff;
+  padding:8px 14px;border-radius:20px;font-size:14px;pointer-events:none;white-space:nowrap}
+#cargando{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8;color:#222;font-weight:600}
+
+#panel{background:var(--panel);border-top:1px solid var(--line);padding:10px 10px 12px}
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tabs button{flex:1;padding:8px 6px;font-size:14px;border-radius:10px}
+.fila{display:flex;gap:8px;align-items:center}
+.fila+.fila{margin-top:10px}
+.fila label{color:var(--mut);font-size:13px;min-width:78px}
+.fila input[type=range]{flex:1;accent-color:var(--acc)}
+.fila .v{min-width:34px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+.seg{display:flex;flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:2px}
+.seg button{flex:1;border:0;background:none;padding:7px 4px;border-radius:8px;font-size:13px}
+.seg button.on{background:var(--acc);color:#1a1408}
+
+#capas{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+#capas::-webkit-scrollbar{display:none}
+.cap{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 8px;
+  border-radius:12px;background:var(--panel2);border:1px solid var(--line);min-width:62px}
+.cap.vis{border-color:var(--acc)}
+.cap.act{background:#2b2619}
+.cap .sw{width:34px;height:22px;border-radius:6px;border:1px solid #0006}
+.cap .n{font-size:12px}
+.cap.off .sw{opacity:.25}
+.nav{display:flex;gap:8px}
+.nav button{flex:1;padding:12px;font-weight:600}
+.nav .paso{flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-width:86px;
+  color:var(--mut);font-size:13px;text-align:center}
+.cortes .fila label{min-width:92px}
+.nota{color:var(--mut);font-size:12.5px;margin-top:8px}
+#menuG{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
+#menuG .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
+#menuG .ht{font-weight:600;margin-bottom:2px}
+#menuG button{text-align:left;font-weight:600}
+#menuG small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:2px}
+</style>
+</head>
+<body>
+
+<section id="inicio">
+  <div class="logo"><i style="height:44px;background:#e9e4dc"></i><i style="height:44px;background:#a8a49e"></i><i style="height:44px;background:#5f5c58"></i><i style="height:44px;background:#1d1c1b"></i></div>
+  <h1>Capas</h1>
+  <p>Divide un diseño por tonos y tatúalo capa por capa: claras, medias, oscuras.</p>
+  <button class="big pri" id="bAbrir">Abrir imagen</button>
+  <button class="big" id="bEjemplo">Probar con el cráneo de ejemplo</button>
+  <input type="file" id="archivo" accept="image/*" class="hide">
+</section>
+
+<section id="editor" class="hide">
+  <div id="top">
+    <button id="bVolver">‹ Inicio</button>
+    <div class="t" id="titulo">Capas</div>
+    <button id="bGuardar">Guardar</button>
+  </div>
+  <div id="lienzo">
+    <canvas id="cv"></canvas>
+    <div id="aviso" class="hide"></div>
+    <div id="cargando" class="hide">Procesando…</div>
+  </div>
+  <div id="panel">
+    <div class="tabs">
+      <button data-tab="ver" class="on">Ver capas</button>
+      <button data-tab="tonos">Tonos</button>
+      <button data-tab="fondo">Fondo</button>
+    </div>
+
+    <div data-pane="ver">
+      <div id="capas"></div>
+      <div class="fila">
+        <div class="seg" id="segModo">
+          <button data-v="sumar" class="on">Ir sumando</button>
+          <button data-v="sola">Solo esta</button>
+        </div>
+      </div>
+      <div class="fila">
+        <div class="seg" id="segVista">
+          <button data-v="real" class="on">Real</button>
+          <button data-v="plano">Gris plano</button>
+          <button data-v="guia">Guía</button>
+          <button data-v="orig">Original</button>
+        </div>
+      </div>
+      <div class="fila">
+        <button id="bFantasma" style="flex:1">Fantasma: no</button>
+        <button id="bContorno" style="flex:1" class="on">Contorno: sí</button>
+      </div>
+      <div class="fila nav">
+        <button id="bAnt">‹ Anterior</button>
+        <div class="paso" id="paso">Capa 1 de 4</div>
+        <button id="bSig" class="pri">Siguiente ›</button>
+      </div>
+    </div>
+
+    <div data-pane="tonos" class="hide">
+      <div class="fila">
+        <label>Nº de tonos</label>
+        <div class="seg" id="segN">
+          <button data-v="2">2</button><button data-v="3">3</button><button data-v="4" class="on">4</button>
+          <button data-v="5">5</button><button data-v="6">6</button>
+        </div>
+      </div>
+      <div class="fila">
+        <label>Repartir</label>
+        <div class="seg" id="segRep">
+          <button data-v="tono" class="on">Tono parejo</button>
+          <button data-v="area">Misma área</button>
+        </div>
+      </div>
+      <div class="fila">
+        <label>Piel (sin tinta)</label>
+        <input type="range" id="rPiel" min="150" max="254" value="236">
+        <span class="v" id="vPiel">236</span>
+      </div>
+      <div class="cortes" id="cortes"></div>
+      <div class="nota">Lo más claro que "Piel" queda sin tinta. Mueve los cortes para pasar zonas de una capa a otra.</div>
+    </div>
+
+    <div data-pane="fondo" class="hide">
+      <div class="fila">
+        <label>Quitar fondo</label>
+        <input type="range" id="rFondo" min="0" max="12" value="3">
+        <span class="v" id="vFondo">3</span>
+      </div>
+      <div class="fila">
+        <button id="bTocar" style="flex:2">Tocar huecos para borrar</button>
+        <button id="bDeshacer" style="flex:1">Deshacer</button>
+      </div>
+      <div class="nota">El fondo se quita desde los bordes. Si quedan huecos encerrados (entre cuernos, dientes…), activa "Tocar huecos" y toca cada uno. 0 = no quitar fondo.</div>
+    </div>
+  </div>
+</section>
+
+<div id="menuG" class="hide">
+  <div class="hoja">
+    <div class="ht">Guardar en la galería</div>
+    <button class="big" data-op="1">Capas transparentes<small>Para apilar en Procreate o Ibis Paint</small></button>
+    <button class="big" data-op="2">Guías<small>Rosado = sin tinta, gris plano = donde va la capa</small></button>
+    <button class="big" data-op="3">Las dos</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const MAXLADO=1800;
+const PIEL=[250,215,200];
+
+const S={
+  W:0,H:0, gris:null, suave:null,
+  fondoBordes:null, huecos:[], fondo:null,   // Uint8 1 = fondo
+  N:4, rep:'tono', piel:236, tolFondo:3, cortes:[], cortesManual:false,
+  capa:null,          // Uint8: 255 = sin tinta, 0 = más clara ... N-1 = más oscura
+  vis:[], actual:0, modo:'sumar', vista:'real', fantasma:false, contorno:true, borde:null,
+  tocar:false, nombre:'diseño'
+};
+
+/* ---------- carga ---------- */
+$('#bAbrir').onclick=()=>$('#archivo').click();
+$('#archivo').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  S.nombre=(f.name||'diseño').replace(/\.[^.]+$/,'');
+  const url=URL.createObjectURL(f);
+  cargarURL(url,()=>URL.revokeObjectURL(url));
+  e.target.value='';
+};
+$('#bEjemplo').onclick=()=>{S.nombre='craneo';cargarURL('ejemplo.jpg');};
+window.abrirDesdeAndroid=(datos,nombre)=>{S.nombre=nombre||'diseño';cargarURL(datos);};
+
+function cargarURL(url,fin){
+  const img=new Image();
+  img.onload=()=>{fin&&fin();prepararImagen(img);};
+  img.onerror=()=>{fin&&fin();alert('No se pudo abrir la imagen.');};
+  img.src=url;
+}
+
+function prepararImagen(img){
+  let w=img.naturalWidth,h=img.naturalHeight,k=Math.min(1,MAXLADO/Math.max(w,h));
+  w=Math.round(w*k);h=Math.round(h*k);
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d',{willReadFrequently:true});
+  x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
+  for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
+  S.W=w;S.H=h;S.gris=g;S.suave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
+  const cv=$('#cv');cv.width=w;cv.height=h;
+  $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
+  $('#titulo').textContent=S.nombre;
+  ajustarVista();
+  ocupado(()=>{calcFondo();calcCapas();S.vis=S.vis.map((_,i)=>i===0);pintar();});
+}
+
+function desenfocar(g,w,h,r){ // caja separable
+  const t=new Float32Array(w*h),o=new Uint8Array(w*h),n=2*r+1;
+  for(let y=0;y<h;y++){let s=0,row=y*w;
+    for(let x=-r;x<=r;x++)s+=g[row+Math.min(w-1,Math.max(0,x))];
+    for(let x=0;x<w;x++){t[row+x]=s/n;s+=g[row+Math.min(w-1,x+r+1)]-g[row+Math.max(0,x-r)];}}
+  for(let x=0;x<w;x++){let s=0;
+    for(let y=-r;y<=r;y++)s+=t[Math.min(h-1,Math.max(0,y))*w+x];
+    for(let y=0;y<h;y++){o[y*w+x]=s/n+.5;s+=t[Math.min(h-1,y+r+1)*w+x]-t[Math.max(0,y-r)*w+x];}}
+  return o;
+}
+
+/* ---------- fondo ---------- */
+function rellenar(semillas,tol,marca){ // relleno flotante 4-vecinos
+  const {W,H,suave}=S, pila=new Int32Array(W*H); let p=0;
+  for(const s of semillas){ if(!marca[s]){marca[s]=1;pila[p++]=s;} }
+  while(p){const i=pila[--p],v=suave[i],x=i%W;
+    const vec=[x>0?i-1:-1,x<W-1?i+1:-1,i>=W?i-W:-1,i<W*(H-1)?i+W:-1];
+    for(const j of vec){ if(j<0||marca[j])continue;
+      if(Math.abs(suave[j]-v)<=tol){marca[j]=1;pila[p++]=j;} }}
+  return marca;
+}
+function calcFondo(){
+  const {W,H}=S, m=new Uint8Array(W*H);
+  if(S.tolFondo>0){
+    const sem=[],paso=12;
+    for(let x=0;x<W;x+=paso){sem.push(x,(H-1)*W+x);}
+    for(let y=0;y<H;y+=paso){sem.push(y*W,y*W+W-1);}
+    rellenar(sem,S.tolFondo,m);
+  }
+  S.fondoBordes=m;
+  for(const h of S.huecos) rellenar([h],Math.max(S.tolFondo,4),m);
+  // limpiar motas sueltas dentro del fondo y borde fino
+  S.fondo=m;
+}
+function tocarHueco(i){
+  if(S.fondo[i])return;
+  S.huecos.push(i);
+  ocupado(()=>{rellenar([i],Math.max(S.tolFondo,4),S.fondo);calcCapas();pintar();});
+}
+
+/* ---------- tonos ---------- */
+function cortesAuto(){
+  const N=S.N,P=S.piel,c=[];
+  if(S.rep==='tono'){ for(let k=1;k<N;k++) c.push(Math.round(P*k/N)); }
+  else{ const hist=new Uint32Array(256);let tot=0;
+    const {gris,fondo}=S;
+    for(let i=0;i<gris.length;i++) if(!fondo[i]&&gris[i]<P){hist[gris[i]]++;tot++;}
+    let acc=0,k=1;
+    for(let v=0;v<256&&k<N;v++){acc+=hist[v]; while(k<N&&acc>=tot*k/N){c.push(v+1);k++;}}
+    while(c.length<N-1)c.push(P);
+  }
+  return c; // ascendentes: límites entre oscuro→claro
+}
+function calcCapas(redibujarCortes=true){
+  if(!S.cortesManual||S.cortes.length!==S.N-1) S.cortes=cortesAuto();
+  const {gris,fondo,N,piel,cortes}=S, cap=new Uint8Array(gris.length);
+  for(let i=0;i<gris.length;i++){
+    const v=gris[i];
+    if(fondo[i]||v>=piel){cap[i]=255;continue;}
+    let b=0; while(b<N-1&&v>=cortes[b])b++;   // b: 0 = más oscuro
+    cap[i]=N-1-b;                            // 0 = más clara
+  }
+  S.capa=cap;
+  if(S.vis.length!==N){S.vis=Array.from({length:N},(_,i)=>i<=Math.min(S.actual,N-1));}
+  S.actual=Math.min(S.actual,N-1);
+  // contorno de la silueta
+  const {W,H}=S, bd=new Uint8Array(W*H);
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const i=y*W+x;
+    if(!fondo[i]&&(fondo[i-1]||fondo[i+1]||fondo[i-W]||fondo[i+W]))bd[i]=1;}
+  S.borde=bd;
+  dibujarCapas(); if(redibujarCortes) dibujarCortes();
+}
+function rangoCapa(k){ // k: 0 = más clara
+  const {N,piel,cortes}=S, b=N-1-k;
+  const lo=b===0?0:cortes[b-1], hi=b===N-1?piel:cortes[b];
+  return [lo,hi];
+}
+function grisPlano(k){const [a,b]=rangoCapa(k);return Math.round((a+b-1)/2);}
+
+/* ---------- pintar ---------- */
+function pintar(){
+  if(!S.capa)return;
+  const {W,H,gris,capa,vis,vista,fantasma,contorno,borde,fondo}=S;
+  const cv=$('#cv'),x=cv.getContext('2d'),im=x.createImageData(W,H),d=im.data;
+  const plano=S.vis.map((_,k)=>grisPlano(k));
+  const guia=vista==='guia';
+  for(let i=0,j=0;i<gris.length;i++,j+=4){
+    let r=255,g=255,b=255;
+    if(vista==='orig'){ r=g=b=gris[i]; }
+    else{
+      const c=capa[i], dentro=!fondo[i];
+      if(guia&&dentro){r=PIEL[0];g=PIEL[1];b=PIEL[2];}
+      if(c!==255){
+        const t=vista==='real'?gris[i]:plano[c];
+        if(vis[c]){r=g=b=t;}
+        else if(fantasma){ // 18 % del tono, sobre lo que haya
+          r=r+(t-r)*.18;g=g+(t-g)*.18;b=b+(t-b)*.18; }
+      }
+      if(contorno&&borde[i]){r=Math.min(r,150);g=Math.min(g,150);b=Math.min(b,150);}
+    }
+    d[j]=r;d[j+1]=g;d[j+2]=b;d[j+3]=255;
+  }
+  x.putImageData(im,0,0);
+  $('#paso').textContent=`Capa ${S.actual+1} de ${S.N}`;
+  $$('.cap').forEach((el,k)=>{el.classList.toggle('vis',!!vis[k]);el.classList.toggle('off',!vis[k]);el.classList.toggle('act',k===S.actual);});
+}
+
+function dibujarCapas(){
+  const box=$('#capas');box.innerHTML='';
+  const nombres=nombresCapas(S.N);
+  for(let k=0;k<S.N;k++){
+    const t=grisPlano(k),el=document.createElement('div');
+    el.className='cap';
+    el.innerHTML=`<div class="sw" style="background:rgb(${t},${t},${t})"></div><div class="n">${k+1} · ${nombres[k]}</div>`;
+    el.onclick=()=>{ if(S.modo==='sola'){irA(k);} else { S.vis[k]=!S.vis[k]; S.actual=k; pintar(); } };
+    box.appendChild(el);
+  }
+}
+function nombresCapas(N){
+  return ({2:['claras','oscuras'],3:['claras','medias','oscuras'],4:['muy claras','claras','medias','oscuras'],
+    5:['muy claras','claras','medias','oscuras','negro'],6:['muy claras','claras','medio claras','medio oscuras','oscuras','negro']})[N];
+}
+function irA(k){
+  S.actual=Math.max(0,Math.min(S.N-1,k));
+  S.vis=S.vis.map((_,i)=>S.modo==='sumar'?i<=S.actual:i===S.actual);
+  pintar();
+}
+function dibujarCortes(){
+  const box=$('#cortes');box.innerHTML='';
+  const nom=nombresCapas(S.N);
+  for(let b=S.N-2;b>=0;b--){ // de claro a oscuro
+    const k=S.N-1-b; // capa clara de arriba de este corte = k-1
+    const f=document.createElement('div');f.className='fila';
+    f.innerHTML=`<label>${nom[k-1]} / ${nom[k]}</label><input type="range" min="1" max="${S.piel-1}" value="${S.cortes[b]}"><span class="v">${S.cortes[b]}</span>`;
+    const r=f.querySelector('input'),v=f.querySelector('.v');
+    r.oninput=()=>{let val=+r.value;
+      const min=b>0?S.cortes[b-1]+1:1,max=b<S.N-2?S.cortes[b+1]-1:S.piel-1;
+      val=Math.max(min,Math.min(max,val));r.value=val;v.textContent=val;S.cortes[b]=val;S.cortesManual=true;
+      reprocesar();};
+    box.appendChild(f);
+  }
+}
+
+/* ---------- controles ---------- */
+let tReproc=0;
+function reprocesar(){clearTimeout(tReproc);tReproc=setTimeout(()=>{calcCapas(false);pintar();},60);}
+function ocupado(fn){$('#cargando').classList.remove('hide');setTimeout(()=>{try{fn();}finally{$('#cargando').classList.add('hide');}},30);}
+
+$$('.tabs button').forEach(b=>b.onclick=()=>{
+  $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  $$('[data-pane]').forEach(p=>p.classList.toggle('hide',p.dataset.pane!==b.dataset.tab));
+  if(b.dataset.tab!=='fondo'&&S.tocar)modoTocar(false);
+});
+function seg(id,fn){$$(id+' button').forEach(b=>b.onclick=()=>{
+  $$(id+' button').forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v);});}
+seg('#segModo',v=>{S.modo=v;irA(S.actual);});
+seg('#segVista',v=>{S.vista=v;pintar();});
+seg('#segN',v=>{S.N=+v;S.cortesManual=false;S.vis=[];S.actual=0;ocupado(()=>{calcCapas();irA(0);});});
+seg('#segRep',v=>{S.rep=v;S.cortesManual=false;ocupado(()=>{calcCapas();pintar();});});
+$('#rPiel').oninput=e=>{S.piel=+e.target.value;$('#vPiel').textContent=S.piel;S.cortesManual=false;
+  clearTimeout(tReproc);tReproc=setTimeout(()=>{calcCapas();pintar();},80);};
+$('#rFondo').oninput=e=>{S.tolFondo=+e.target.value;$('#vFondo').textContent=S.tolFondo;
+  clearTimeout(tReproc);tReproc=setTimeout(()=>ocupado(()=>{calcFondo();calcCapas();pintar();}),150);};
+$('#bFantasma').onclick=e=>{S.fantasma=!S.fantasma;e.target.textContent='Fantasma: '+(S.fantasma?'sí':'no');e.target.classList.toggle('on',S.fantasma);pintar();};
+$('#bContorno').onclick=e=>{S.contorno=!S.contorno;e.target.textContent='Contorno: '+(S.contorno?'sí':'no');e.target.classList.toggle('on',S.contorno);pintar();};
+$('#bAnt').onclick=()=>irA(S.actual-1);
+$('#bSig').onclick=()=>irA(S.actual+1);
+$('#bVolver').onclick=()=>{$('#editor').classList.add('hide');$('#inicio').classList.remove('hide');modoTocar(false);};
+$('#bTocar').onclick=()=>modoTocar(!S.tocar);
+$('#bDeshacer').onclick=()=>{if(!S.huecos.length)return;S.huecos.pop();ocupado(()=>{calcFondo();calcCapas();pintar();});};
+function modoTocar(on){S.tocar=on;$('#bTocar').classList.toggle('on',on);
+  $('#bTocar').textContent=on?'Tocando huecos… (listo)':'Tocar huecos para borrar';
+  aviso(on?'Toca cada hueco de fondo que quieras borrar':'');}
+let tAviso=0;
+function aviso(t,ms){const a=$('#aviso');clearTimeout(tAviso);if(!t){a.classList.add('hide');return;}
+  a.textContent=t;a.classList.remove('hide');if(ms)tAviso=setTimeout(()=>a.classList.add('hide'),ms);}
+
+window.onNativeBack=()=>{ if(!$('#editor').classList.contains('hide')){$('#bVolver').click();return true;} return false; };
+
+/* ---------- zoom y arrastre ---------- */
+const V={s:1,x:0,y:0};
+function ajustarVista(){
+  const L=$('#lienzo'),r=L.getBoundingClientRect(),pad=10;
+  V.s=Math.min((r.width-pad*2)/S.W,(r.height-pad*2)/S.H);
+  V.x=(r.width-S.W*V.s)/2;V.y=(r.height-S.H*V.s)/2;aplicarVista();
+}
+function aplicarVista(){$('#cv').style.transform=`translate(${V.x}px,${V.y}px) scale(${V.s})`;}
+(()=>{
+  const L=$('#lienzo'),pts=new Map();let ini=null,movido=false,ultimoTap=0;
+  L.addEventListener('pointerdown',e=>{L.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    movido=false;ini=estado();});
+  L.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const a=estado();if(!ini||a.n!==ini.n){ini=a;return;}
+    if(Math.hypot(a.cx-ini.cx,a.cy-ini.cy)>6||Math.abs(a.d-ini.d)>6)movido=true;
+    if(!movido)return;
+    const r=L.getBoundingClientRect();
+    const k=a.n>1&&ini.d>0?a.d/ini.d:1, ns=Math.max(.2,Math.min(30,V.s*k)), kk=ns/V.s;
+    const px=ini.cx-r.left,py=ini.cy-r.top;
+    V.x=px-(px-V.x)*kk+(a.cx-ini.cx);V.y=py-(py-V.y)*kk+(a.cy-ini.cy);V.s=ns;aplicarVista();ini=a;});
+  const fin=e=>{const tenia=pts.size;pts.delete(e.pointerId);
+    if(tenia===1&&!movido&&e.type==='pointerup'){
+      const ahora=Date.now();
+      if(S.tocar){const r=L.getBoundingClientRect();
+        const ix=Math.floor((e.clientX-r.left-V.x)/V.s),iy=Math.floor((e.clientY-r.top-V.y)/V.s);
+        if(ix>=0&&iy>=0&&ix<S.W&&iy<S.H)tocarHueco(iy*S.W+ix);}
+      else if(ahora-ultimoTap<300)ajustarVista();
+      ultimoTap=ahora;}
+    ini=pts.size?estado():null;};
+  L.addEventListener('pointerup',fin);L.addEventListener('pointercancel',fin);
+  L.addEventListener('wheel',e=>{e.preventDefault();const r=L.getBoundingClientRect(),k=e.deltaY<0?1.15:1/1.15,
+    px=e.clientX-r.left,py=e.clientY-r.top;V.x=px-(px-V.x)*k;V.y=py-(py-V.y)*k;V.s*=k;aplicarVista();},{passive:false});
+  function estado(){const p=[...pts.values()],n=p.length;if(!n)return{n:0,cx:0,cy:0,d:0};
+    const cx=p.reduce((s,q)=>s+q.x,0)/n,cy=p.reduce((s,q)=>s+q.y,0)/n;
+    return{n,cx,cy,d:n>1?Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y):0};}
+  let ultTam='';
+  new ResizeObserver(()=>{const r=L.getBoundingClientRect(),t=r.width+'x'+r.height;
+    if(S.W&&t!==ultTam&&r.height>0){ultTam=t;ajustarVista();}}).observe(L);
+})();
+
+/* ---------- guardar ---------- */
+$('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
+$('#menuG').onclick=e=>{ if(e.target.id==='menuG')$('#menuG').classList.add('hide'); };
+$$('#menuG [data-op]').forEach(b=>b.onclick=()=>{$('#menuG').classList.add('hide');guardarTodo(b.dataset.op);});
+function guardarTodo(op){
+  ocupado(()=>{
+    const nom=nombresCapas(S.N);let n=0;
+    for(let k=0;k<S.N;k++){
+      const base=`${S.nombre}_capa${k+1}_${nom[k].replace(/ /g,'-')}`;
+      if(op==='1'||op==='3'){guardar(base+'.png',lienzoCapa(k,'transp'));n++;}
+      if(op==='2'||op==='3'){guardar(base+'_guia.png',lienzoCapa(k,'guia'));n++;}
+    }
+    if(op==='2'||op==='3'){guardar(`${S.nombre}_mapa_${S.N}_tonos.png`,lienzoCapa(-1,'guia'));n++;}
+    aviso(`${n} imágenes guardadas en Galería › Capas`,3500);
+  });
+}
+function lienzoCapa(k,tipo){
+  const {W,H,gris,capa,fondo}=S,c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d'),im=x.createImageData(W,H),d=im.data;
+  for(let i=0,j=0;i<gris.length;i++,j+=4){
+    const ci=capa[i];
+    if(tipo==='transp'){ if(ci===k){d[j]=d[j+1]=d[j+2]=gris[i];d[j+3]=255;} }
+    else{
+      let r=255,g=255,b=255;
+      if(!fondo[i]){r=PIEL[0];g=PIEL[1];b=PIEL[2];}
+      if(ci!==255&&(k<0||ci===k)){r=g=b=grisPlano(ci);}
+      if(S.borde[i]){r=Math.min(r,150);g=Math.min(g,150);b=Math.min(b,150);}
+      d[j]=r;d[j+1]=g;d[j+2]=b;d[j+3]=255;
+    }
+  }
+  x.putImageData(im,0,0);return c;
+}
+function guardar(nombre,canvas){
+  const url=canvas.toDataURL('image/png');
+  if(window.Android&&Android.guardarImagen){Android.guardarImagen(url.split(',')[1],nombre);return;}
+  const a=document.createElement('a');a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+}
+</script>
+</body>
+</html>
