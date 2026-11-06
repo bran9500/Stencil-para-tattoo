@@ -1706,6 +1706,9 @@ function preguntarClaude(texto,extra={}){
   if(!extra.t0)Object.keys(IA.pend).forEach(k=>{if(!IA.pend[k].cb)delete IA.pend[k];}); // pregunta nueva: olvidar las viejas
   const pv=extra.prov||IA.prov, clave=claveDe(pv);
   const probados=extra.probados||[];
+  if(listoProv(pv)&&pv!=='propio'&&claveRara(clave)){logD('🧠 ✖ '+NOMBRE_PROV(pv)+': clave con caracteres raros (copiada oculta)');
+    const sig=siguienteCerebro([...probados,pv]);if(sig){preguntarClaude(texto,{...extra,prov:sig,probados:[...probados,pv],t0:extra.t0||Date.now()});return;}
+    fallarTodo('La clave de '+NOMBRE_PROV(pv)+' se copió oculta, con puntitos. Crea una nueva y usa el botón de copiar.');return;}
   if(!listoProv(pv)){
     const sig=siguienteCerebro([...probados,pv]);
     if(sig&&pv===IA.prov){preguntarClaude(texto,{...extra,prov:sig,probados:[...probados,pv]});return;}
@@ -1805,7 +1808,7 @@ function dibujarRespaldos(){
     f.innerHTML=`<div class="r"><button class="tg" style="flex:1;text-align:left">${on?'✅':'⬜'} ${NOMBRE_PROV(pv)}${pv==='claude'?' (de pago)':' (gratis)'}</button><span class="est" style="font-size:12px;color:var(--mut)">${listoProv(pv)?'clave lista':'falta clave'}</span></div>
       <div class="r"><input type="password" placeholder="${ph[pv]}" autocomplete="off"></div>`;
     const inp=f.querySelector('input');inp.value=claveDe(pv);
-    inp.oninput=()=>{const k=inp.value.replace(/[\s"']/g,'');if(ubicarClave(k,pv)){inp.value=claveDe(pv);return;}IA.claves=IA.claves||{};IA.claves[pv]=k;guardarIA();f.querySelector('.est').textContent=listoProv(pv)?'clave lista':'falta clave';};
+    inp.oninput=()=>{const k=inp.value.replace(/[\s"']/g,'');avisarRara(k,NOMBRE_PROV(pv));if(ubicarClave(k,pv)){inp.value=claveDe(pv);return;}IA.claves=IA.claves||{};IA.claves[pv]=k;guardarIA();f.querySelector('.est').textContent=listoProv(pv)?'clave lista':'falta clave';};
     f.querySelector('.tg').onclick=()=>{IA.respaldos=IA.respaldos||{};IA.respaldos[pv]=!on;guardarIA();dibujarRespaldos();};
     box.appendChild(f);
   }
@@ -1832,7 +1835,7 @@ $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)a
 $('#bSiempreIA').onclick=()=>{IA.siempre=!IA.siempre;guardarIA();pintarIAUI();aviso(IA.siempre?'Todo lo que digas pasa por la IA (un poco más lento)':'Los comandos cortos los hace la app al instante',3500);};
 $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
 const limpiarClave=v=>v.replace(/[\s"'“”]/g,'');
-$('#txtKey').oninput=$('#txtKey').onchange=e=>{const k=limpiarClave(e.target.value);if(ubicarClave(k,IA.prov)){e.target.value=IA.key;return;}IA.key=k;guardarIA();};
+$('#txtKey').oninput=$('#txtKey').onchange=e=>{const k=limpiarClave(e.target.value);avisarRara(k,NOMBRE_PROV(IA.prov));if(ubicarClave(k,IA.prov)){e.target.value=IA.key;return;}IA.key=k;guardarIA();};
 $('#selModelo').onchange=e=>{IA.modelo=e.target.value;guardarIA();};
 $('#selProv').onchange=e=>{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;IA.modelos=IA.modelos||{};IA.modelos[IA.prov]=IA.modeloLibre;IA.prov=e.target.value;IA.key=(IA.claves[IA.prov]||'');IA.modeloLibre=IA.modelos[IA.prov]||'';IA.hist=[];dibujarRespaldos();guardarIA();pintarIAUI();};
 $('#txtUrl').onchange=e=>{IA.url=e.target.value.trim();guardarIA();};
@@ -1884,7 +1887,7 @@ function pintarEleven(){
   $('#selVoz11').value=IA.voz11;
 }
 $('#selMotor').onchange=e=>{IA.motor=e.target.value;guardarIA();pintarEleven();if(IA.motor==='eleven'&&IA.key11&&!IA.voz11)cargarVoces11();};
-$('#txtKey11').oninput=e=>{const k=e.target.value.replace(/[\s"']/g,'');if(ubicarClave(k,'eleven')){e.target.value=IA.key11;return;}IA.key11=k;guardarIA();};
+$('#txtKey11').oninput=e=>{const k=e.target.value.replace(/[\s"']/g,'');avisarRara(k,'ElevenLabs');if(ubicarClave(k,'eleven')){e.target.value=IA.key11;return;}IA.key11=k;guardarIA();};
 $('#selModelo11').onchange=e=>{IA.modelo11=e.target.value;guardarIA();};
 $('#rEstab').oninput=e=>{IA.estab=+e.target.value/10;$('#vEstab').textContent=IA.estab.toFixed(1);guardarIA();};
 $('#rExpr').oninput=e=>{IA.expr=+e.target.value/10;$('#vExpr').textContent=IA.expr.toFixed(1);guardarIA();};
@@ -1912,6 +1915,8 @@ function cargarVoces11(){
 
 
 /* ---------- reconocer claves y probarlas ---------- */
+function claveRara(k){return /[^\x21-\x7e]/.test(k||'')||/•|\*{3,}|\.{3,}|…/.test(k||'');}
+function avisarRara(k,nom){ if(claveRara(k)){aviso('Esa clave de '+nom+' tiene puntitos o caracteres raros: se copió oculta. Crea una nueva y usa el botón de copiar.',6000);return true;} return false; }
 function tipoClave(k){k=k||'';return k.startsWith('AIza')?'gemini':k.startsWith('sk-or-')?'openrouter':k.startsWith('gsk_')?'groq':k.startsWith('sk-ant-')?'claude':/^sk_[a-z0-9]/i.test(k)?'eleven':'';}
 function ubicarClave(k,donde){ // guarda la clave en el cerebro que le corresponde; devuelve true si la movió
   const t=tipoClave(k);if(!t||t===donde)return false;
@@ -1933,6 +1938,7 @@ $('#bProbarClaves').onclick=()=>{
   for(const [pv,k] of lista){
     const nom=pv==='eleven'?'ElevenLabs':NOMBRE_PROV(pv);
     const malTipo=tipoClave(k)&&tipoClave(k)!==pv;
+    if(claveRara(k)){filas[pv]=`<b>${nom}</b>: <span class="mal">✖ la clave tiene puntitos o caracteres raros (se copió oculta)</span> · ${huella(k)}`;logD('🔑 '+nom+' clave con caracteres raros '+huella(k));pintar();if(++hechas===lista.length)decir('Revisa las claves marcadas');continue;}
     let url,enc,cuerpo=null;
     if(pv==='gemini'){url=PROV.gemini.base+'/models';enc={'Authorization':'Bearer '+k};}
     else if(pv==='groq'){url=PROV.groq.base+'/models';enc={'Authorization':'Bearer '+k};}
