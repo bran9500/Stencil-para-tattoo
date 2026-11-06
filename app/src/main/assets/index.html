@@ -97,9 +97,15 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 .estf select{background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px;font:inherit;font-size:13px}
 #panel{max-height:52vh;overflow-y:auto}
 #menuP textarea{width:100%;height:34vh;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px;font:13px/1.4 system-ui,sans-serif;resize:none}
-#menuG,#menuE,#menuP,#menuV{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
-#menuG .hoja,#menuE .hoja,#menuP .hoja,#menuV .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
-#menuG .ht,#menuE .ht,#menuP .ht,#menuV .ht{font-weight:600;margin-bottom:2px}
+#menuL .hoja{max-height:90vh}
+#menuL .lista{overflow-y:auto;flex:1;min-height:0;background:var(--bg);border-radius:10px;padding:4px 12px 10px}
+#menuL h4{margin:12px 0 4px;color:var(--acc2);font-size:14px}
+#menuL p{margin:0 0 7px;font-size:13px;line-height:1.5;color:var(--mut)}
+#menuL p b{color:var(--tx)}
+#menuL p span{color:var(--mut);font-style:italic}
+#menuG,#menuE,#menuP,#menuV,#menuL{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
+#menuG .hoja,#menuE .hoja,#menuP .hoja,#menuV .hoja,#menuL .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
+#menuG .ht,#menuE .ht,#menuP .ht,#menuV .ht,#menuL .ht{font-weight:600;margin-bottom:2px}
 #menuG button,#menuE button{text-align:left;font-weight:600}
 #menuG small,#menuE small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:2px}
 </style>
@@ -294,6 +300,49 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
   </div>
 </div>
 
+<div id="menuL" class="hide">
+  <div class="hoja">
+    <div class="ht">Lista de comandos</div>
+    <div class="nota" style="margin:0">Siempre empieza con tu palabra clave (por ejemplo "viernes"). Puedes decirlo de cualquiera de estas formas; los números van con palabra o con número ("capa dos" o "capa 2"). Di <b>"viernes, ayuda"</b> para abrir esta lista.</div>
+    <div class="lista">
+      <h4>Capas</h4>
+      <p><b>Ir a una capa</b> · capa 2 · la 2 · ve a la capa 2 · pasa a la 3 · llévame a la capa 4 · la última</p>
+      <p><b>Solo algunas</b> · solo capa 4 · solamente la 2 y la 3 · nada más la 1 · únicamente la 3 · déjame solo la 2</p>
+      <p><b>Un rango</b> · de la 2 a la 4 · desde la 1 hasta la 3 · del 2 al 3</p>
+      <p><b>Mostrar</b> · sí capa 2 · pon la 2 · muéstrame la 3 · enséñame la 1 · prende la 4 · agrega la 2 · actívala 3 · con la 2</p>
+      <p><b>Quitar</b> · no capa 2 · quita la 2 · quítame la 3 · saca la 1 · oculta la 4 · apaga la 2 · sin la 3 · esconde la 2 · borra la 1</p>
+      <p><b>Hasta</b> · hasta la capa 3 (muestra de la 1 a la 3)</p>
+      <p><b>Todas / ninguna</b> · todas · todo · todas las capas · muéstrame todo · ninguna · quita todo · apaga todo · limpia</p>
+      <p><b>Siguiente</b> · siguiente · la que sigue · próxima · adelante · avanza · otra · dale</p>
+      <p><b>Anterior</b> · anterior · atrás · devuélvete · regresa · vuelve · la de antes · retrocede</p>
+      <h4>Zoom</h4>
+      <p><b>Área 1-9</b> · área 5 · zona 9 · cuadro 4 · parte 2 · haz zoom en el área 7 · zoom al 3 <span>(1-2-3 arriba, 4-5-6 medio, 7-8-9 abajo)</span></p>
+      <p><b>Acercar</b> · más · más zoom · aumenta · auméntalo · acércalo · acércate · agranda · amplía · haz zoom · súbele el zoom · más cerca</p>
+      <p><b>Alejar</b> · menos · menos zoom · aléjate · aléjalo · aléjate del área · reduce · achica · bájale el zoom · más lejos</p>
+      <p><b>Cuánto</b> · un poco más · un poquito menos · mucho más · bastante menos · acércalo duro</p>
+      <p><b>Zoom hacia un lado</b> · aumenta a la derecha · acércalo a la izquierda · aumenta arriba · más zoom abajo · aumenta en el área derecha de la misma área</p>
+      <p><b>Mover</b> · derecha · a la izquierda · arriba · sube · abajo · baja · un poco a la derecha · muévete hacia abajo · corre a la izquierda</p>
+      <p><b>Ver todo</b> · completa · imagen completa · toda la imagen · entera · centra · encuadra · quita el zoom · sin zoom</p>
+      <p><b>Cuadrícula</b> · cuadrícula · muestra las áreas · números · quita la cuadrícula · sin cuadrícula</p>
+      <h4>Vistas</h4>
+      <p><b>Real</b> · real · vista real · sombreado · tonos reales</p>
+      <p><b>Gris plano</b> · gris · gris plano · plano</p>
+      <p><b>Guía</b> · guía · rosado · mapa</p>
+      <p><b>Original</b> · original · normal · foto · la imagen</p>
+      <p><b>Esténcil por capas</b> · líneas · las líneas · solo líneas · vista esténcil</p>
+      <p><b>Fantasma</b> · fantasma sí · pon el fantasma · quita el fantasma · transparente</p>
+      <p><b>Contorno</b> · contorno sí · quita el contorno · borde · silueta</p>
+      <h4>App</h4>
+      <p><b>Pestañas</b> · ver capas · modo capas · ver esténcil · abre esténcil</p>
+      <p><b>Deshacer</b> · vuelve a la configuración anterior · deshaz · cancela · eso no · me equivoqué · como estaba · no era eso <span>(repítelo para seguir retrocediendo)</span></p>
+      <p><b>Ayuda</b> · ayuda · comandos · qué puedo decir · lista de comandos</p>
+      <p><b>Apagar micrófono</b> · deja de escuchar · apágate · silencio · descansa · chao</p>
+      <p><span>Si algo no te lo entiende, créalo en "Mis comandos" con tu propia frase.</span></p>
+    </div>
+    <button id="bCerrarL" class="big pri">Cerrar</button>
+  </div>
+</div>
+
 <div id="menuV" class="hide">
   <div class="hoja">
     <div class="ht">Comandos de voz</div>
@@ -315,24 +364,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <input type="text" id="txtProbar" placeholder="Escribe una frase para probarla" autocomplete="off">
       <button id="bProbar">Probar</button>
     </div>
-    <div class="ht" style="margin-top:4px">Comandos que ya entiende</div>
-    <div class="cmd">
-      Di la palabra clave y luego el comando, por ejemplo <b>"Stencil, solo capa 2 y 3"</b>. También puedes decir solo <b>"Stencil"</b>, esperar un segundo y decir el comando.<br><br>
-      <b>capa 2</b> · va a esa capa (en "Ir sumando" muestra de la 1 a la 2)<br>
-      <b>solo capa 4</b> · <b>solo capa 2 y 3</b> · muestra solo esas<br>
-      <b>sí capa 2</b> · <b>pon / muestra capa 2</b> · la prende<br>
-      <b>no capa 2</b> · <b>quita / oculta capa 2</b> · la apaga<br>
-      <b>todas</b> · <b>ninguna</b> · <b>siguiente</b> · <b>anterior</b><br>
-      <b>original</b> · <b>real</b> · <b>gris</b> · <b>guía</b> · <b>líneas</b> (esténcil por capas)<br>
-      <b>fantasma sí / no</b> · <b>contorno sí / no</b><br>
-      <b>área 5</b> · <b>zona 9</b> · zoom a esa parte (1-2-3 arriba, 4-5-6 medio, 7-8-9 abajo)<br>
-      <b>más</b> · <b>menos</b> · <b>mucho más</b> · zoom<br>
-      <b>derecha</b> · <b>izquierda</b> · <b>arriba</b> · <b>abajo</b> · mueve la vista<br>
-      <b>completa</b> · vuelve a ver todo · <b>cuadrícula sí / no</b> · muestra los números<br>
-      <b>ver capas</b> · <b>ver esténcil</b><br>
-      <b>deja de escuchar</b> · apaga el micrófono<br><br>
-      En la pestaña Esténcil, los comandos de capa prenden o apagan las sombras del esténcil.
-    </div>
+    <button id="bListaCmd">📖 Ver lista de comandos</button>
     <button class="big pri" id="bVozOnOff">Activar micrófono</button>
     <button id="bCerrarV">Cerrar</button>
   </div>
@@ -404,7 +436,7 @@ function prepararImagen(img,tol){
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
   const d=x.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
   for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
-  S.W=w;S.H=h;S.edits=[];S.gem=null;S.fuente='auto';S.gris=g;
+  S.W=w;S.H=h;S.edits=[];if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.fuente='auto';S.gris=g;
   if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';}S.suave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
   const cv=$('#cv');cv.width=w;cv.height=h;
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
@@ -628,8 +660,10 @@ function zoomArea(n){
   const cw=S.W/3,ch=S.H/3,cx=(c+.5)*cw,cy=(f+.5)*ch,ns=Math.min(r.width/cw,r.height/ch)*.95;
   animarVista(r.width/2-cx*ns,r.height/2-cy*ns,ns);
 }
-function zoomCentro(k){const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2,ns=Math.max(.2,Math.min(30,V.s*k)),kk=ns/V.s;
-  animarVista(px-(px-V.x)*kk,py-(py-V.y)*kk,ns);}
+function zoomCentro(k,fx=.5,fy=.5){const r=$('#lienzo').getBoundingClientRect(),px=r.width*fx,py=r.height*fy,ns=Math.max(.2,Math.min(30,V.s*k)),kk=ns/V.s;
+  // acerca hacia el punto (fx,fy) y lo lleva al centro de la pantalla
+  const nx=px-(px-V.x)*kk+(r.width/2-px)*(k>1?1:0),ny=py-(py-V.y)*kk+(r.height/2-py)*(k>1?1:0);
+  animarVista(nx,ny,ns);}
 function moverVista(dx,dy){const r=$('#lienzo').getBoundingClientRect(); // dx=1: ver más a la derecha
   animarVista(V.x-dx*r.width*.33,V.y-dy*r.height*.33,V.s);}
 function vistaCompleta(){const L=$('#lienzo'),r=L.getBoundingClientRect(),pad=10,ns=Math.min((r.width-pad*2)/S.W,(r.height-pad*2)/S.H);
@@ -1159,11 +1193,12 @@ const ACCIONES=[ // [id, nombre, capas: 0 no, 1 una, 2 varias, frase interna]
   ['v_plano','Vista gris plano',0,()=>'gris'],['v_guia','Vista guía',0,()=>'guia'],
   ['fant_si','Fantasma sí',0,()=>'fantasma si'],['fant_no','Fantasma no',0,()=>'fantasma no'],
   ['cont_si','Contorno sí',0,()=>'contorno si'],['cont_no','Contorno no',0,()=>'contorno no'],
-  ['area','Zoom a un área (1-9)',3,c=>'area '+c[0]],['acercar','Más zoom',0,()=>'mas'],['alejar','Menos zoom',0,()=>'menos'],
+  ['area','Zoom a un área (1-9)',3,c=>'area '+c[0]],['acercar','Más zoom',0,()=>'aumenta'],['acercar_poco','Un poco más de zoom',0,()=>'aumenta un poco'],['alejar','Menos zoom',0,()=>'alejate'],['alejar_poco','Un poco menos de zoom',0,()=>'alejate un poco'],
+  ['acer_der','Zoom hacia la derecha',0,()=>'aumenta derecha'],['acer_izq','Zoom hacia la izquierda',0,()=>'aumenta izquierda'],['acer_arr','Zoom hacia arriba',0,()=>'aumenta arriba'],['acer_abj','Zoom hacia abajo',0,()=>'aumenta abajo'],
   ['der','Mover a la derecha',0,()=>'derecha'],['izq','Mover a la izquierda',0,()=>'izquierda'],['arr','Mover arriba',0,()=>'arriba'],['abj','Mover abajo',0,()=>'abajo'],
   ['centrar','Ver imagen completa',0,()=>'completa'],['grid_si','Mostrar cuadrícula',0,()=>'cuadricula'],['grid_no','Ocultar cuadrícula',0,()=>'no cuadricula'],
   ['tab_ver','Ir a Ver capas',0,()=>'ver capas'],['tab_est','Ir a Esténcil',0,()=>'ver estencil'],
-  ['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
+  ['deshacer','Deshacer el último comando',0,()=>'deshacer'],['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
 const ACC=Object.fromEntries(ACCIONES.map(a=>[a[0],a]));
 let MIS=[{frase:'primera capa',accion:'solo',capas:[1]},{frase:'enseña todo',accion:'todas',capas:[]},{frase:'la que sigue',accion:'sig',capas:[]}];
 try{const g=JSON.parse(localStorage.getItem('misComandos')||'null');if(Array.isArray(g))MIS=g;}catch(_){}
@@ -1203,10 +1238,30 @@ function buscarMio(t){
     if(p>pm){pm=p;mejor=c;}}
   return pm>=0.78?mejor:null;
 }
+const HIST=[];
+function fotoEstado(){return {vis:S.vis.slice(),actual:S.actual,vista:S.vista,fantasma:S.fantasma,contorno:S.contorno,
+  V:{x:V.x,y:V.y,s:V.s},est:S.estIncl?S.estIncl.slice():null,tab:S.tab,grid:!$('#grid').classList.contains('hide')};}
+function volverEstado(f){
+  if(f.tab!==S.tab)$(`[data-tab=${f.tab}]`).click();
+  S.vis=f.vis.slice();S.actual=f.actual;if(f.est)S.estIncl=f.est.slice();
+  S.vista=f.vista;$$('#segVista button').forEach(b=>b.classList.toggle('on',b.dataset.v===f.vista));
+  S.fantasma=f.fantasma;$('#bFantasma').textContent='Fantasma: '+(S.fantasma?'sí':'no');$('#bFantasma').classList.toggle('on',S.fantasma);
+  S.contorno=f.contorno;$('#bContorno').textContent='Contorno: '+(S.contorno?'sí':'no');$('#bContorno').classList.toggle('on',S.contorno);
+  $('#grid').classList.toggle('hide',!f.grid);
+  if(S.tab==='est')dibujarEstCapas();
+  animarVista(f.V.x,f.V.y,f.V.s);pintar();
+}
+const DESHACER=['deshacer','deshaz','deshazlo','deshacelo','configuracion anterior','la configuracion de antes','como estaba antes','como estaba','dejalo como estaba','vuelve como estaba','regresa como estaba','lo de antes','cancela','cancelalo','cancelar','eso no','me equivoque','equivocado','no era eso','error','revierte','revertir','reversa','me arrepenti','undo','vuelve atras el cambio','paso atras'];
 function ejecutarFrase(t){
-  const c=buscarMio(t);
-  if(c){const a=ACC[c.accion];const r=ejecutarVoz(norm(a[3](c.capas)));return r?(c.frase+' → '+r):null;}
-  return ejecutarVoz(t);
+  if(tiene(t,...DESHACER)){
+    if(!HIST.length)return 'No hay nada que deshacer';
+    volverEstado(HIST.pop());return 'Deshecho · como estaba antes';}
+  const antes=S.capa?fotoEstado():null;
+  const c=buscarMio(t);let r;
+  if(c){const a=ACC[c.accion];r=ejecutarVoz(norm(a[3](c.capas)));r=r?(c.frase+' → '+r):null;}
+  else r=ejecutarVoz(t);
+  if(r&&antes&&!/Lista de comandos|Micrófono/.test(r)){HIST.push(antes);if(HIST.length>20)HIST.shift();}
+  return r;
 }
 
 /* ---------- comandos de voz ---------- */
@@ -1224,6 +1279,10 @@ function pintarVozUI(){
 $('#bMic').onclick=()=>{pintarVozUI();dibujarMis();$('#menuV').classList.remove('hide');};
 $('#bAuto').onclick=()=>{VOZ.auto=!VOZ.auto;if(VOZ.auto&&!VOZ.pedir){VOZ.pedir=true;aviso('Con manos libres la palabra clave queda activada',3000);}guardarVoz();pintarVozUI();if(VOZ.auto&&!VOZ.on)prenderVoz(true);};
 $('#bCerrarV').onclick=()=>$('#menuV').classList.add('hide');
+function abrirListaCmd(){$('#menuV').classList.add('hide');$('#menuL').classList.remove('hide');}
+$('#bListaCmd').onclick=abrirListaCmd;
+$('#bCerrarL').onclick=()=>$('#menuL').classList.add('hide');
+$('#menuL').onclick=e=>{ if(e.target.id==='menuL')$('#menuL').classList.add('hide'); };
 $('#menuV').onclick=e=>{ if(e.target.id==='menuV')$('#menuV').classList.add('hide'); };
 $('#txtClave').oninput=e=>{VOZ.clave=e.target.value.trim()||'stencil';guardarVoz();};
 $('#bClaveReq').onclick=()=>{VOZ.pedir=!VOZ.pedir;guardarVoz();pintarVozUI();};
@@ -1269,56 +1328,74 @@ window.comandoVoz=alts=>{
   }
   if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta))mostrarVoz('No entendí: "'+alts[0]+'"',2500);
 };
-function numeros(t){const out=[];for(const w of t.trim().split(' ')){if(/^\d+$/.test(w))out.push(+w);else if(NUM[w])out.push(NUM[w]);}
+function numeros(t){const out=[];for(const w of t.trim().split(' ')){if(/^\d+$/.test(w))out.push(+w);else if(NUM[w])out.push(NUM[w]);else if(w==='ultima'||w==='ultimo')out.push(S.N);}
   return out.filter(n=>n>=1&&n<=S.N);}
 const tiene=(t,...ws)=>ws.some(w=>t.includes(' '+w+' '));
 function ejecutarVoz(t){
   if(!S.capa)return null;
-  if(tiene(t,'deja de escuchar','apaga el microfono','apagar microfono','silencio','para de escuchar')){prenderVoz(false);return 'Micrófono apagado';}
-  if(tiene(t,'ver estencil','modo estencil','pestana estencil','ver stencil')){$('[data-tab=est]').click();return 'Esténcil';}
-  if(tiene(t,'ver capas','modo capas')){$('[data-tab=ver]').click();return 'Ver capas';}
-  {const AREA=['area','areas','zona','cuadro','cuadrante','parte','sector','seccion'];
-   if(tiene(t,...AREA)){const m=t.match(/ (?:area|areas|zona|cuadro|cuadrante|parte|sector|seccion) (?:numero )?(\d|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve) /);
-     const N2={...NUM,siete:7,ocho:8,nueve:9};
-     if(m){const n=/^\d$/.test(m[1])?+m[1]:N2[m[1]];if(n>=1&&n<=9){zoomArea(n);return 'Zoom área '+n;}}}}
-  if(tiene(t,'cuadricula','cuadros','numeros')){const on=!tiene(t,'no','quita','oculta','apaga','sin');cuadricula(on);return 'Cuadrícula: '+(on?'sí':'no');}
-  if(tiene(t,'completa','completo','toda la imagen','imagen entera','centrar','centra','encuadrar','ajustar')&&!tiene(t,'capa','capas')){vistaCompleta();return 'Imagen completa';}
-  if(tiene(t,'derecha')){moverVista(1,0);return 'Derecha';}
-  if(tiene(t,'izquierda')){moverVista(-1,0);return 'Izquierda';}
-  if(tiene(t,'arriba','sube','subir')){moverVista(0,-1);return 'Arriba';}
-  if(tiene(t,'abajo','baja','bajar')){moverVista(0,1);return 'Abajo';}
-  if(!/\d/.test(t)&&!tiene(t,'nada mas')){
-    if(tiene(t,'mucho mas','bastante mas')){zoomCentro(2.2);return 'Mucho más zoom';}
-    if(tiene(t,'mucho menos','bastante menos')){zoomCentro(1/2.2);return 'Mucho menos zoom';}
-    if(tiene(t,'mas','acercar','acerca','zoom','mas cerca','aumenta','agranda')&&!tiene(t,'menos')){zoomCentro(1.4);return 'Más zoom';}
-    if(tiene(t,'menos','alejar','aleja','mas lejos','reduce','achica')){zoomCentro(1/1.4);return 'Menos zoom';}
+  const has=(...ws)=>tiene(t,...ws);
+  const pre=(...ps)=>new RegExp(' ('+ps.join('|')+')[a-z]*').test(t);
+  const ns=numeros(t), num=ns.length>0;
+  // --- generales ---
+  if(has('ayuda','comandos','que puedo decir','que entiendes','lista de comandos','que comandos','que le digo')){abrirListaCmd();return 'Lista de comandos';}
+  if(has('deja de escuchar','para de escuchar','apagate','apaga el microfono','apagar microfono','apaga microfono','silencio','chao','descansa','duermete','ya no escuches','no escuches')){prenderVoz(false);return 'Micrófono apagado';}
+  if(has('ver estencil','modo estencil','pestana estencil','ver stencil','ir a estencil','abre estencil','abrir estencil')){$('[data-tab=est]').click();return 'Esténcil';}
+  if(!num&&has('ver capas','modo capas','ir a capas','abre capas','abrir capas','vuelve a capas')){$('[data-tab=ver]').click();return 'Ver capas';}
+  // --- zoom a un área 1-9 ---
+  {const m=t.match(/ (?:area|areas|zona|cuadro|cuadrante|recuadro|parte|sector|seccion|bloque|zoom(?: en| a| al| hacia)?(?: el| la)?)(?: area| zona| parte)? (?:numero )?(\d|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve) /);
+   const N2={...NUM,siete:7,ocho:8,nueve:9};
+   if(m){const n=/^\d$/.test(m[1])?+m[1]:N2[m[1]];if(n>=1&&n<=9){zoomArea(n);return 'Zoom área '+n;}}}
+  if(has('cuadricula','cuadriculas','cuadros','numeros','las areas','las zonas')){const on=!(has('no','sin')||pre('quit','ocult','apag','borr','escond'));cuadricula(on);return 'Cuadrícula: '+(on?'sí':'no');}
+  // --- ver toda la imagen ---
+  if(!num&&!has('capa','capas')&&has('completa','completo','entera','toda la imagen','imagen completa','imagen entera','vista completa','centra','centrar','centrala','centralo','encuadra','encuadrar','ajusta','ajustar','quita el zoom','quitale el zoom','sin zoom','reinicia','resetea','tamano normal','vuelve al inicio','todo el dibujo','todo el diseno')){vistaCompleta();return 'Imagen completa';}
+  // --- zoom y mover ---
+  {const der=has('derecha'),izq=has('izquierda'),arr=has('arriba','sube','subir','parte de arriba','para arriba'),abj=has('abajo','baja','bajar','parte de abajo','para abajo');
+    const hayDir=der||izq||arr||abj;
+    const ZIN=pre('acerc','aument','agrand','ampli')||has('mas zoom','mas cerca','mas grande','zoom in','subele el zoom','sube el zoom','dale zoom','haz zoom','hazle zoom')||(has('zoom')&&!has('menos zoom','quita el zoom','sin zoom'))||(has('mas')&&!hayDir&&!has('nada mas','no mas')&&!num);
+    const ZOUT=pre('alej','reduc','achic','disminu','achiquit')||has('menos zoom','mas lejos','mas pequeno','mas chiquito','bajale el zoom','baja el zoom','zoom out')||(has('menos')&&!num);
+    const poco=has('un poco','poquito','poco','tantico','un toque','un pelin','suave'),mucho=has('mucho','bastante','harto','full','duro','arto');
+    const f=mucho?2.2:poco?1.2:1.4;
+    if(ZOUT&&!pre('acerc','aument','agrand','ampli')){zoomCentro(1/f,.5,.5);return (mucho?'Mucho menos':poco?'Un poco menos':'Menos')+' zoom';}
+    if(ZIN){const fx=der?.78:izq?.22:.5,fy=abj?.78:arr?.22:.5;zoomCentro(f,fx,fy);
+      const lado=[der&&'derecha',izq&&'izquierda',arr&&'arriba',abj&&'abajo'].filter(Boolean).join(' y ');
+      return (mucho?'Mucho más':poco?'Un poco más':'Más')+' zoom'+(lado?' hacia '+lado:'');}
+    if(hayDir&&!num){const k=poco?.5:mucho?2:1;moverVista((der?1:izq?-1:0)*k,(abj?1:arr?-1:0)*k);
+      return 'Mover '+[der&&'derecha',izq&&'izquierda',arr&&'arriba',abj&&'abajo'].filter(Boolean).join(' y ');}
   }
-  const neg=tiene(t,'no','quita','quitar','quitale','oculta','ocultar','apaga','apagar','sin','esconde','esconder','fuera','borra');
-  const pos=tiene(t,'si','pon','poner','ponle','muestra','mostrar','muestrame','agrega','agregar','prende','prender','con','activa','enciende');
-  if(tiene(t,'fantasma')){S.fantasma=neg?false:pos?true:!S.fantasma;$('#bFantasma').textContent='Fantasma: '+(S.fantasma?'sí':'no');$('#bFantasma').classList.toggle('on',S.fantasma);pintar();return 'Fantasma: '+(S.fantasma?'sí':'no');}
-  if(tiene(t,'contorno')){S.contorno=neg?false:pos?true:!S.contorno;$('#bContorno').textContent='Contorno: '+(S.contorno?'sí':'no');$('#bContorno').classList.toggle('on',S.contorno);pintar();return 'Contorno: '+(S.contorno?'sí':'no');}
-  const vistas=[['lineas','est','Esténcil'],['vista estencil','est','Esténcil'],['original','orig','Original'],['real','real','Real'],['gris','plano','Gris plano'],['plano','plano','Gris plano'],['guia','guia','Guía']];
-  if(S.tab!=='est')for(const [w,v,nm] of vistas)if(tiene(t,w)){$(`#segVista [data-v=${v}]`).click();return 'Vista: '+nm;}
+  const MOSTRAR=pre('muestr','mostr','ensen','pon','prend','activ','agreg','anad','mete','abre','encend','enciend','habilit','sum')||has('si','con','deja ver','dejame ver');
+  const OCULTAR=pre('quit','saca','ocult','escond','apag','desactiv','borr','elimin','retir','cierr','cerr','rest')||has('no','sin','fuera');
+  // --- fantasma y contorno ---
+  if(has('fantasma','transparente','transparencia')){S.fantasma=OCULTAR?false:MOSTRAR?true:!S.fantasma;$('#bFantasma').textContent='Fantasma: '+(S.fantasma?'sí':'no');$('#bFantasma').classList.toggle('on',S.fantasma);pintar();return 'Fantasma: '+(S.fantasma?'sí':'no');}
+  if(has('contorno','borde','silueta')){S.contorno=OCULTAR?false:MOSTRAR?true:!S.contorno;$('#bContorno').textContent='Contorno: '+(S.contorno?'sí':'no');$('#bContorno').classList.toggle('on',S.contorno);pintar();return 'Contorno: '+(S.contorno?'sí':'no');}
+  // --- vistas ---
+  const vistas=[['est','Esténcil',['lineas','linea','vista estencil','solo lineas','las lineas','modo lineas']],
+    ['orig','Original',['original','normal','foto','la imagen','imagen original','sin capas']],
+    ['real','Real',['real','reales','grises reales','tonos reales','sombreado','vista real']],
+    ['plano','Gris plano',['gris plano','plano','plana','gris','grises planos']],
+    ['guia','Guía',['guia','rosado','rosada','mapa','la guia']]];
+  if(S.tab!=='est'&&!num)for(const [v,nm,ws] of vistas)if(has(...ws)){$(`#segVista [data-v=${v}]`).click();return 'Vista: '+nm;}
+  // --- capas ---
   const enEst=S.tab==='est';
   if(!enEst&&S.tab!=='ver')$('[data-tab=ver]').click();
-  const arr=()=>enEst?(asegurarEst(),S.estIncl):S.vis;
+  const arrC=()=>enEst?(asegurarEst(),S.estIncl):S.vis;
   const listo=msg=>{if(enEst)dibujarEstCapas();pintar();return msg;};
-  if(tiene(t,'siguiente','sigue','proxima','adelante')&&!enEst){irA(S.actual+1);return 'Capa '+(S.actual+1);}
-  if(tiene(t,'anterior','atras','regresa','devuelve')&&!enEst){irA(S.actual-1);return 'Capa '+(S.actual+1);}
-  if(tiene(t,'todas','todo','completo','completa')&&!neg){arr().fill(true);return listo('Todas las capas');}
-  const ns=numeros(t);
-  if(!ns.length&&(tiene(t,'ninguna','nada')||(tiene(t,'todas','todo')&&neg))){arr().fill(false);return listo('Ninguna capa');}
-  if(!ns.length)return null;
+  if(!num&&!enEst&&has('siguiente','sigue','la que sigue','proxima','proximo','adelante','avanza','avanzar','otra','pasa','dale','next','la otra')){irA(S.actual+1);return 'Capa '+(S.actual+1);}
+  if(!num&&!enEst&&has('anterior','atras','devuelvete','devuelve','regresa','regresate','vuelve','retrocede','la de antes','previa','para atras')){irA(S.actual-1);return 'Capa '+(S.actual+1);}
+  if(!num&&has('todas','todo','todas las capas','todas las sombras')&&!OCULTAR){arrC().fill(true);return listo('Todas las capas');}
+  if(!num&&(has('ninguna','nada','limpia','en blanco','ninguna capa')||(has('todas','todo')&&OCULTAR))){arrC().fill(false);return listo('Ninguna capa');}
+  if(!num)return null;
   const lista=ns.length===1?'capa '+ns[0]:'capas '+ns.slice(0,-1).join(', ')+' y '+ns[ns.length-1];
-  if(tiene(t,'solo','solamente','unicamente','nada mas','sola','solas')){const a=arr();for(let k=0;k<a.length;k++)a[k]=ns.includes(k+1);
-    if(!enEst)S.actual=ns[ns.length-1]-1;return listo('Solo '+lista);}
-  if(neg){const a=arr();ns.forEach(n=>a[n-1]=false);return listo('Sin '+lista);}
-  if(pos){const a=arr();ns.forEach(n=>a[n-1]=true);if(!enEst)S.actual=ns[ns.length-1]-1;return listo('Con '+lista);}
-  if(tiene(t,'hasta')&&!enEst){const n=Math.max(...ns);S.vis=S.vis.map((_,k)=>k<n);S.actual=n-1;pintar();return 'Capas 1 a '+n;}
-  if(!tiene(t,'capa','capas','la','el','numero'))return null;
-  if(enEst){const a=arr();for(let k=0;k<a.length;k++)a[k]=ns.includes(k+1);return listo('Solo '+lista);}
+  const soloEstas=(arrN,msg)=>{const a=arrC();for(let k=0;k<a.length;k++)a[k]=arrN.includes(k+1);if(!enEst)S.actual=arrN[arrN.length-1]-1;return listo(msg);};
+  if(ns.length===2&&has('de','del','desde')&&has('a','al','hasta')){const lo=Math.min(...ns),hi=Math.max(...ns),r=[];for(let n=lo;n<=hi;n++)r.push(n);return soloEstas(r,`Capas ${lo} a ${hi}`);}
+  if(has('solo','solamente','unicamente','nada mas','no mas','nomas','sola','solas','solita','solito','unica','unicas','nada mas que')) return soloEstas(ns,'Solo '+lista);
+  if(OCULTAR){const a=arrC();ns.forEach(n=>a[n-1]=false);return listo('Sin '+lista);}
+  if(MOSTRAR){const a=arrC();ns.forEach(n=>a[n-1]=true);if(!enEst)S.actual=ns[ns.length-1]-1;return listo('Con '+lista);}
+  if(has('hasta')&&!enEst){const n=Math.max(...ns);S.vis=S.vis.map((_,k)=>k<n);S.actual=n-1;pintar();return 'Capas 1 a '+n;}
+  const soloNumeros=t.trim().split(' ').every(w=>/^\d+$/.test(w)||NUM[w]||['y','e','la','las','el','capa','capas','numero','ultima','ultimo'].includes(w));
+  if(!soloNumeros&&!has('capa','capas','numero','ve a','vete a','pasa a','pasate a','cambia a','llevame','vamos a','ponme en','ir a'))return null;
+  if(enEst)return soloEstas(ns,'Solo '+lista);
   if(ns.length===1){irA(ns[0]-1);return 'Capa '+ns[0];}
-  S.vis=S.vis.map((_,k)=>ns.includes(k+1));S.actual=ns[ns.length-1]-1;pintar();return 'Solo '+lista;
+  return soloEstas(ns,'Solo '+lista);
 }
 function zoomVoz(k){zoomCentro(k);return;const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2;
   V.x=px-(px-V.x)*k;V.y=py-(py-V.y)*k;V.s*=k;aplicarVista();}
