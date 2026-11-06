@@ -9,6 +9,10 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.view.WindowManager;
+import android.content.ComponentName;
+import android.content.pm.ResolveInfo;
+import android.provider.Settings;
+import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -47,6 +51,9 @@ public class MainActivity extends Activity {
     private SpeechRecognizer reconocedor;
     private Intent intentVoz;
     private boolean escuchando;
+    private String servicioVoz = ""; // "" = predeterminado, "ondevice" = en el dispositivo, o paquete/clase
+    private String idiomaVoz = "es-US";
+    private long ultimoNivel = 0;
     private final Handler manejador = new Handler(Looper.getMainLooper());
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
@@ -154,21 +161,26 @@ public class MainActivity extends Activity {
 
     private void iniciarVoz() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            evento("pide_permiso", "");
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMISO_MIC);
             return;
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             Toast.makeText(this, "Este teléfono no tiene reconocimiento de voz (instala o activa la app de Google)", Toast.LENGTH_LONG).show();
+            evento("no_disponible", "");
             js("window.vozEstado&&vozEstado('no')");
             return;
         }
         if (reconocedor == null) {
-            reconocedor = SpeechRecognizer.createSpeechRecognizer(this);
+            reconocedor = crearReconocedor();
             reconocedor.setRecognitionListener(oyente);
         }
         intentVoz = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intentVoz.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intentVoz.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-US");
+        if (idiomaVoz.length() > 0) {
+            intentVoz.putExtra(RecognizerIntent.EXTRA_LANGUAGE, idiomaVoz);
+            intentVoz.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, idiomaVoz);
+        }
         intentVoz.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intentVoz.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         intentVoz.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
@@ -176,6 +188,40 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         try { reconocedor.startListening(intentVoz); } catch (Exception e) { reiniciarVoz(600); }
         js("window.vozEstado&&vozEstado('on')");
+    }
+
+    private SpeechRecognizer crearReconocedor() {
+        evento("crear", servicioVoz.isEmpty() ? "predeterminado" : servicioVoz);
+        try {
+            if ("ondevice".equals(servicioVoz) && Build.VERSION.SDK_INT >= 31) return SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+            if (servicioVoz.contains("/")) return SpeechRecognizer.createSpeechRecognizer(this, ComponentName.unflattenFromString(servicioVoz));
+        } catch (Exception e) { evento("error_crear", e.toString()); }
+        return SpeechRecognizer.createSpeechRecognizer(this);
+    }
+
+    private void evento(String tipo, String dato) {
+        js("window.vozEvento&&vozEvento(" + JSONObject.quote(tipo) + "," + JSONObject.quote(dato == null ? "" : dato) + ")");
+    }
+
+    private String diagnostico() {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("modelo", Build.MANUFACTURER + " " + Build.MODEL);
+            o.put("android", Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")");
+            o.put("disponible", SpeechRecognizer.isRecognitionAvailable(this));
+            if (Build.VERSION.SDK_INT >= 31) o.put("enDispositivo", SpeechRecognizer.isOnDeviceRecognitionAvailable(this));
+            o.put("permisoMic", checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED);
+            String def = Settings.Secure.getString(getContentResolver(), "voice_recognition_service");
+            o.put("predeterminado", def == null ? "" : def);
+            JSONArray serv = new JSONArray();
+            List<ResolveInfo> l = getPackageManager().queryIntentServices(new Intent("android.speech.RecognitionService"), 0);
+            for (ResolveInfo r : l) serv.put(r.serviceInfo.packageName + "/" + r.serviceInfo.name);
+            o.put("servicios", serv);
+            o.put("servicioUsado", servicioVoz.isEmpty() ? "predeterminado" : servicioVoz);
+            o.put("idioma", idiomaVoz.isEmpty() ? "del sistema" : idiomaVoz);
+            o.put("escuchando", escuchando);
+            return o.toString();
+        } catch (Exception e) { return "{\"error\":" + JSONObject.quote(e.toString()) + "}"; }
     }
 
     private void detenerVoz() {
@@ -199,6 +245,7 @@ public class MainActivity extends Activity {
     private final RecognitionListener oyente = new RecognitionListener() {
         @Override public void onResults(Bundle r) {
             ArrayList<String> t = r.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            evento("resultado", t == null ? "(vacío)" : t.toString());
             if (t != null && !t.isEmpty()) js("window.comandoVoz&&comandoVoz(" + new JSONArray(t) + ")");
             reiniciarVoz(150);
         }
@@ -207,14 +254,18 @@ public class MainActivity extends Activity {
             if (t != null && !t.isEmpty()) js("window.vozParcial&&vozParcial(" + JSONObject.quote(t.get(0)) + ")");
         }
         @Override public void onError(int error) {
+            evento("error", String.valueOf(error));
             if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) { detenerVoz(); return; }
             reiniciarVoz(error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? 700 : 250);
         }
-        @Override public void onReadyForSpeech(Bundle p) {}
-        @Override public void onBeginningOfSpeech() {}
-        @Override public void onRmsChanged(float v) {}
+        @Override public void onReadyForSpeech(Bundle p) { evento("listo", ""); }
+        @Override public void onBeginningOfSpeech() { evento("habla", ""); }
+        @Override public void onRmsChanged(float v) {
+            long t = System.currentTimeMillis();
+            if (t - ultimoNivel > 120) { ultimoNivel = t; js("window.vozNivel&&vozNivel(" + v + ")"); }
+        }
         @Override public void onBufferReceived(byte[] b) {}
-        @Override public void onEndOfSpeech() {}
+        @Override public void onEndOfSpeech() { evento("fin", ""); }
         @Override public void onEvent(int t, Bundle p) {}
     };
 
@@ -242,6 +293,24 @@ public class MainActivity extends Activity {
         /** Prende o apaga la escucha de comandos de voz. */
         @JavascriptInterface
         public void voz(boolean prender) { runOnUiThread(() -> { if (prender) iniciarVoz(); else detenerVoz(); }); }
+
+        /** Datos para la pantalla de diagnóstico de voz. */
+        @JavascriptInterface
+        public String vozDiag() { return diagnostico(); }
+
+        /** Cambia el servicio de reconocimiento y el idioma, y reinicia la escucha. */
+        @JavascriptInterface
+        public void vozConfig(String servicio, String idioma) {
+            runOnUiThread(() -> {
+                boolean estaba = escuchando;
+                detenerVoz();
+                if (reconocedor != null) { try { reconocedor.destroy(); } catch (Exception ignored) {} reconocedor = null; }
+                servicioVoz = servicio == null ? "" : servicio;
+                idiomaVoz = idioma == null ? "" : idioma;
+                evento("config", "servicio=" + (servicioVoz.isEmpty() ? "predeterminado" : servicioVoz) + " idioma=" + (idiomaVoz.isEmpty() ? "sistema" : idiomaVoz));
+                if (estaba) iniciarVoz();
+            });
+        }
 
         /** Copia texto al portapapeles. */
         @JavascriptInterface

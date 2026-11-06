@@ -103,9 +103,16 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 #menuL p{margin:0 0 7px;font-size:13px;line-height:1.5;color:var(--mut)}
 #menuL p b{color:var(--tx)}
 #menuL p span{color:var(--mut);font-style:italic}
-#menuG,#menuE,#menuP,#menuV,#menuL{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
-#menuG .hoja,#menuE .hoja,#menuP .hoja,#menuV .hoja,#menuL .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
-#menuG .ht,#menuE .ht,#menuP .ht,#menuV .ht,#menuL .ht{font-weight:600;margin-bottom:2px}
+.diag{background:var(--bg);border-radius:10px;padding:8px 10px;font:12px/1.45 ui-monospace,Menlo,monospace;color:var(--mut);white-space:pre-wrap;word-break:break-all}
+.diag.log{height:24vh;overflow-y:auto}
+.diag b{color:var(--tx)}
+.diag .ok{color:#3ecf8e}.diag .mal{color:#ff6b6b}
+.dsel{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:13px;min-width:0}
+.nivel{flex:1;height:14px;background:var(--bg);border-radius:7px;overflow:hidden}
+.nivel i{display:block;height:100%;width:0;background:#3ecf8e;transition:width .1s}
+#menuG,#menuE,#menuP,#menuV,#menuL,#menuD{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
+#menuG .hoja,#menuE .hoja,#menuP .hoja,#menuV .hoja,#menuL .hoja,#menuD .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
+#menuG .ht,#menuE .ht,#menuP .ht,#menuV .ht,#menuL .ht,#menuD .ht{font-weight:600;margin-bottom:2px}
 #menuG button,#menuE button{text-align:left;font-weight:600}
 #menuG small,#menuE small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:2px}
 </style>
@@ -300,6 +307,27 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
   </div>
 </div>
 
+<div id="menuD" class="hide">
+  <div class="hoja">
+    <div class="ht">Diagnóstico de voz</div>
+    <div id="diagInfo" class="diag"></div>
+    <div class="fila" style="margin:0"><label style="min-width:70px">Servicio</label><select id="selServ" class="dsel"></select></div>
+    <div class="fila" style="margin:0"><label style="min-width:70px">Idioma</label>
+      <select id="selIdioma" class="dsel">
+        <option value="es-US">Español (EE. UU.)</option><option value="es-CO">Español (Colombia)</option>
+        <option value="es-MX">Español (México)</option><option value="es-ES">Español (España)</option>
+        <option value="">Idioma del sistema</option></select></div>
+    <div class="fila" style="margin:0"><label style="min-width:70px">Nivel</label><div class="nivel"><i id="nivelBar"></i></div></div>
+    <div class="nota" style="margin:0">Activa el micrófono y habla: la barra debe moverse y abajo deben salir los eventos y lo que entendió.</div>
+    <div id="diagLog" class="diag log"></div>
+    <div class="fila" style="margin:0">
+      <button id="bDiagMic" class="pri" style="flex:1">Activar micrófono</button>
+      <button id="bDiagCopiar" style="flex:1">Copiar informe</button>
+    </div>
+    <button id="bCerrarD">Cerrar</button>
+  </div>
+</div>
+
 <div id="menuL" class="hide">
   <div class="hoja">
     <div class="ht">Lista de comandos</div>
@@ -365,6 +393,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <button id="bProbar">Probar</button>
     </div>
     <button id="bListaCmd">📖 Ver lista de comandos</button>
+    <button id="bDiag">🔧 Diagnóstico de voz</button>
     <button class="big pri" id="bVozOnOff">Activar micrófono</button>
     <button id="bCerrarV">Cerrar</button>
   </div>
@@ -1266,9 +1295,9 @@ function ejecutarFrase(t){
 
 /* ---------- comandos de voz ---------- */
 const VOZ={on:false,clave:'stencil',pedir:true,auto:false,armadoHasta:0,rec:null};
-try{const g=JSON.parse(localStorage.getItem('voz')||'{}');if(g.clave)VOZ.clave=g.clave;if(g.pedir===false)VOZ.pedir=false;if(g.auto)VOZ.auto=true;}catch(_){}
+try{const g=JSON.parse(localStorage.getItem('voz')||'{}');if(g.clave)VOZ.clave=g.clave;if(g.pedir===false)VOZ.pedir=false;if(g.auto)VOZ.auto=true;if(g.servicio!==undefined)VOZ.servicio=g.servicio;if(g.idioma!==undefined)VOZ.idioma=g.idioma;}catch(_){}
 $('#txtClave').value=VOZ.clave;
-function guardarVoz(){try{localStorage.setItem('voz',JSON.stringify({clave:VOZ.clave,pedir:VOZ.pedir,auto:VOZ.auto}));}catch(_){}}
+function guardarVoz(){try{localStorage.setItem('voz',JSON.stringify({clave:VOZ.clave,pedir:VOZ.pedir,auto:VOZ.auto,servicio:VOZ.servicio||'',idioma:VOZ.idioma===undefined?'es-US':VOZ.idioma}));}catch(_){}}
 function pintarVozUI(){
   $('#bMic').classList.toggle('on',VOZ.on);
   $('#bVozOnOff').textContent=VOZ.on?'Apagar micrófono':'Activar micrófono';
@@ -1317,13 +1346,15 @@ function claves(){ // la palabra clave y cómo suele transcribirse "stencil"
 }
 window.comandoVoz=alts=>{
   const ahora=Date.now();
+  logD('🔎 claves buscadas: '+claves().slice(0,4).join(', ')+(claves().length>4?'…':''));
   for(const alt of alts){
     let t=norm(alt), tiene=false;
     for(const c of claves()){const i=t.indexOf(' '+c+' ');if(i>=0){t=' '+t.slice(i+c.length+1);tiene=true;break;}}
     const armado=ahora<VOZ.armadoHasta;
-    if(VOZ.pedir&&!tiene&&!armado)continue;
+    if(VOZ.pedir&&!tiene&&!armado){logD('   · "'+alt+'" → sin palabra clave, ignorado');continue;}
     if(tiene&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);return;}
     const r=ejecutarFrase(t);
+    logD('   · "'+alt+'" → '+(r?'✔ '+r:'no es un comando'));
     if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);return;}
   }
   if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta))mostrarVoz('No entendí: "'+alts[0]+'"',2500);
@@ -1399,6 +1430,55 @@ function ejecutarVoz(t){
 }
 function zoomVoz(k){zoomCentro(k);return;const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2;
   V.x=px-(px-V.x)*k;V.y=py-(py-V.y)*k;V.s*=k;aplicarVista();}
+
+
+/* ---------- diagnóstico de voz ---------- */
+const DIAG={log:[],info:null};
+const ERRV={1:'red: tiempo agotado',2:'red',3:'audio (micrófono ocupado o falla)',4:'servidor',5:'cliente',6:'no habló a tiempo',7:'no entendió nada',8:'reconocedor ocupado',9:'sin permiso de micrófono',10:'demasiadas peticiones',11:'servidor desconectado',12:'idioma no soportado',13:'idioma no disponible ahora',14:'no se puede chequear',15:'no se puede escuchar'};
+function logD(t){const h=new Date().toTimeString().slice(0,8);DIAG.log.push(h+'  '+t);if(DIAG.log.length>80)DIAG.log.shift();
+  const el=$('#diagLog');if(el&&!$('#menuD').classList.contains('hide')){el.textContent=DIAG.log.join('\n');el.scrollTop=el.scrollHeight;}}
+window.vozEvento=(tipo,dato)=>{
+  const txt={listo:'✔ listo para escuchar',habla:'🗣 detectó voz',fin:'■ terminó de hablar',crear:'⚙ reconocedor: '+dato,config:'⚙ '+dato,
+    no_disponible:'✖ esta tablet no tiene reconocimiento de voz',pide_permiso:'… pidiendo permiso de micrófono',error_crear:'✖ no pudo crear el servicio: '+dato,
+    resultado:'📝 oyó: '+dato,error:'⚠ error '+dato+' ('+(ERRV[dato]||'?')+')'}[tipo]||tipo+' '+dato;
+  if(tipo==='error'&&(dato==='7'||dato==='6'))DIAG.silencios=(DIAG.silencios||0)+1;
+  logD(txt);
+};
+window.vozNivel=v=>{const b=$('#nivelBar');if(b)b.style.width=Math.max(0,Math.min(100,(v+2)*9))+'%';};
+function infoDiag(){
+  let d={};try{d=window.Android&&Android.vozDiag?JSON.parse(Android.vozDiag()):{navegador:true};}catch(e){d={error:String(e)};}
+  DIAG.info=d;
+  const si=v=>v?'<span class="ok">sí</span>':'<span class="mal">NO</span>';
+  if(d.navegador){$('#diagInfo').innerHTML='Estás en el navegador, no en la app instalada.';return d;}
+  $('#diagInfo').innerHTML=`<b>Equipo:</b> ${d.modelo} · Android ${d.android}
+<b>Reconocimiento de voz:</b> ${si(d.disponible)}${d.enDispositivo!==undefined?' · en el dispositivo: '+si(d.enDispositivo):''}
+<b>Permiso de micrófono:</b> ${si(d.permisoMic)}
+<b>Servicio predeterminado:</b> ${d.predeterminado||'(ninguno)'}
+<b>Servicios instalados:</b> ${(d.servicios||[]).length?(d.servicios||[]).join(', '):'<span class="mal">ninguno</span>'}
+<b>Palabra clave:</b> "${VOZ.clave}" · pedir clave: ${VOZ.pedir?'sí':'no'} · escuchando: ${si(d.escuchando)}`;
+  const sel=$('#selServ'),cur=VOZ.servicio||'';
+  sel.innerHTML='<option value="">Predeterminado</option>'+(d.enDispositivo?'<option value="ondevice">En el dispositivo (sin internet)</option>':'')+
+    (d.servicios||[]).map(x=>`<option value="${x}">${x.split('/')[0]}</option>`).join('');
+  sel.value=cur; if(sel.value!==cur)sel.value='';
+  $('#selIdioma').value=VOZ.idioma===undefined?'es-US':VOZ.idioma;
+  $('#bDiagMic').textContent=VOZ.on?'Apagar micrófono':'Activar micrófono';
+  return d;
+}
+function abrirDiag(){$('#menuV').classList.add('hide');$('#menuD').classList.remove('hide');infoDiag();
+  $('#diagLog').textContent=DIAG.log.join('\n')||'(sin eventos todavía)';}
+$('#bDiag').onclick=abrirDiag;
+$('#bCerrarD').onclick=()=>$('#menuD').classList.add('hide');
+$('#bDiagMic').onclick=()=>{prenderVoz(!VOZ.on);setTimeout(infoDiag,800);};
+function aplicarConfigVoz(){ if(window.Android&&Android.vozConfig)Android.vozConfig(VOZ.servicio||'',VOZ.idioma===undefined?'es-US':VOZ.idioma); }
+$('#selServ').onchange=e=>{VOZ.servicio=e.target.value;guardarVoz();aplicarConfigVoz();setTimeout(infoDiag,800);};
+$('#selIdioma').onchange=e=>{VOZ.idioma=e.target.value;guardarVoz();aplicarConfigVoz();setTimeout(infoDiag,800);};
+$('#bDiagCopiar').onclick=()=>{
+  const d=infoDiag();
+  const rep='DIAGNÓSTICO DE VOZ · Stencil Lab\n'+JSON.stringify(d,null,1)+'\nClave: '+VOZ.clave+' · pedir: '+VOZ.pedir+' · manos libres: '+VOZ.auto+'\nMis comandos: '+MIS.length+'\n\nEVENTOS:\n'+DIAG.log.slice(-40).join('\n');
+  if(window.Android&&Android.copiar)Android.copiar(rep);else{navigator.clipboard&&navigator.clipboard.writeText(rep);aviso('Informe copiado',2000);}
+};
+// aplicar servicio/idioma guardados al iniciar
+setTimeout(aplicarConfigVoz,300);
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
