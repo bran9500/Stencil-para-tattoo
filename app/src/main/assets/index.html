@@ -1608,6 +1608,7 @@ function repararClaves(){let cambio=false;const todas=[[IA.prov,IA.key],...Objec
   if(IA.claves&&IA.claves[IA.prov]&&!IA.key&&tipoClave(IA.claves[IA.prov])!==''&&tipoClave(IA.claves[IA.prov])===IA.prov)IA.key=IA.claves[IA.prov];return cambio;}
 const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({respaldos:IA.respaldos||{},modelos:IA.modelos||{},siempre:IA.siempre,motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
 if(repararClaves())guardarIA();
+try{if(!localStorage.getItem('iaLite')){localStorage.setItem('iaLite','1');if(IA.prov==='gemini'&&!/lite/.test(IA.modeloLibre||'')){IA.modeloLibre='';guardarIA();}if(IA.modelos&&IA.modelos.gemini&&!/lite/.test(IA.modelos.gemini)){IA.modelos.gemini='';guardarIA();}}}catch(_){}
 const iaLista=()=>IA.on&&(listoProv(IA.prov)||ORDEN_RESPALDO.some(pv=>(IA.respaldos||{})[pv]!==false&&listoProv(pv)));
 function decir(t){ if(!IA.voz||!t||!window.Android)return;
   if(IA.motor==='eleven'&&IA.key11&&IA.voz11&&Android.hablar11){Android.hablar11(IA.key11,IA.voz11,IA.modelo11,t,IA.estab,IA.expr);return;}
@@ -1666,7 +1667,7 @@ function httpIA(url,enc,cuerpo,cb){ // cuerpo null = GET
 const PROV={
   gemini:{nombre:'Gemini',base:'https://generativelanguage.googleapis.com/v1beta/openai',auto:true,
     filtro:i=>/^gemini-/.test(i)&&/flash/.test(i)&&!/(image|tts|audio|live|thinking|exp|preview|embedding|vision)/.test(i),
-    orden:(a,b)=>{const v=i=>parseFloat((i.match(/gemini-(\d+(?:\.\d+)?)/)||[0,0])[1]);return v(b)-v(a)||(/lite/.test(a)?-1:1)-(/lite/.test(b)?-1:1);}},
+    orden:(a,b)=>{const v=i=>parseFloat((i.match(/gemini-(\d+(?:\.\d+)?)/)||[0,0])[1]);const l=i=>/lite/.test(i)?1:0;return l(b)-l(a)||v(b)-v(a);}},
   groq:{nombre:'Groq',base:'https://api.groq.com/openai/v1',auto:true,
     filtro:i=>!/(whisper|guard|tts|playai|vision|distil|embed|orpheus|compound|safeguard|prompt)/i.test(i),
     orden:(a,b)=>{const pts=i=>(/llama/i.test(i)?4:0)+(/(70b|versatile|scout|maverick)/i.test(i)?3:0)+(/qwen|gpt-oss|kimi/i.test(i)?2:0)+(/(instant|8b)/i.test(i)?1:0);return pts(b)-pts(a);}},
@@ -1702,6 +1703,7 @@ const esNube=(pv=IA.prov)=>!!PROV[pv];
 const PROV_NOMBRE=()=>NOMBRE_PROV(IA.prov);
 function fallarTodo(msg){mostrarVoz(msg,7000);decir(msg);}
 function preguntarClaude(texto,extra={}){
+  if(!extra.t0)Object.keys(IA.pend).forEach(k=>{if(!IA.pend[k].cb)delete IA.pend[k];}); // pregunta nueva: olvidar las viejas
   const pv=extra.prov||IA.prov, clave=claveDe(pv);
   const probados=extra.probados||[];
   if(!listoProv(pv)){
@@ -1750,6 +1752,9 @@ window.iaRespuesta=(id,codigo,texto)=>{
     // 1) modelo que ya no existe: buscar otro del mismo cerebro
     if(esNube(pv)&&(codigo===404||codigo===400&&/model/i.test(m)||/not found|is not supported|decommissioned/i.test(m))&&!p.reintento){
       fijarModelo(pv,'');elegirModelo(ok=>{if(ok)preguntarClaude(p.texto,{prov:pv,probados:p.probados,reintento:true,t0:p.t0});else pasarRespaldo();},pv);return;}
+    if(codigo===0&&/UnknownHost|resolve host|No address associated|ENOTFOUND|Network is unreachable/i.test(m)){
+      Object.keys(IA.pend).forEach(k=>{if(!IA.pend[k].cb)delete IA.pend[k];});
+      fallarTodo('La tablet no tiene internet ahora mismo (revisa el wifi o el DNS privado)');return;}
     // 2) saturado o conexión cortada: un par de reintentos rápidos en el mismo cerebro (con otro modelo si hay)
     const pasajero=codigo===0||codigo===503||codigo===529||codigo===500||codigo===502||codigo===504||(codigo===429&&!/quota|per day|exhausted/i.test(m));
     const hayRespaldo=!!siguienteCerebro([...p.probados,pv]);
@@ -1758,7 +1763,7 @@ window.iaRespuesta=(id,codigo,texto)=>{
       const n=p.intentos+1;
       const conAlterno=()=>{let modelo='';
         if(esNube(pv)&&(codigo===503||codigo===429||codigo===529)){
-          const usado=p.modelo||modeloDe(pv);const alt=((IA.alternosDe||{})[pv]||[]).filter(x=>x!==usado);modelo=alt[(n-1)%Math.max(1,alt.length)]||'';}
+          const usado=p.modelo||modeloDe(pv);const lista=((IA.alternosDe||{})[pv]||[]).filter(x=>x!==usado);const alt=[...lista.filter(x=>/lite/.test(x)!==/lite/.test(usado)),...lista.filter(x=>/lite/.test(x)===/lite/.test(usado))];modelo=alt[(n-1)%Math.max(1,alt.length)]||'';}
         logD(modelo?'🧠 ↻ '+quien+' con '+modelo:'🧠 ↻ reintento '+n+' en '+quien);
         setTimeout(()=>preguntarClaude(p.texto,{prov:pv,probados:p.probados,intentos:n,modelo,t0:p.t0,reintento:p.reintento}),700*n);};
       if(esNube(pv)&&!((IA.alternosDe||{})[pv]||[]).length&&(codigo===503||codigo===429||codigo===529))elegirModelo(conAlterno,pv,true);
