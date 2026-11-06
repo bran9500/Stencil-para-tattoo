@@ -66,6 +66,8 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
   color:var(--mut);font-size:13px;text-align:center}
 .cortes .fila label{min-width:92px}
 .nota{color:var(--mut);font-size:12.5px;margin-top:8px}
+.rangoCaja{flex:1;display:flex;align-items:center;touch-action:pan-y;padding:10px 0;margin:-10px 0}
+.rangoCaja input[type=range]{flex:1;width:100%;pointer-events:none}
 
 .estf{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
 .estf+.estf{margin-top:6px}
@@ -494,6 +496,7 @@ function dibujarCortes(){
       reprocesar();};
     box.appendChild(f);
   }
+  if(window.protegerDeslizadores)protegerDeslizadores();
 }
 
 /* ---------- controles ---------- */
@@ -978,6 +981,38 @@ function teñir(c,color){
   const o=document.createElement('canvas');o.width=c.width;o.height=c.height;const x=o.getContext('2d');
   x.drawImage(c,0,0);x.globalCompositeOperation='source-in';x.fillStyle=color;x.fillRect(0,0,o.width,o.height);return o;
 }
+
+
+/* ---------- deslizadores: solo se mueven deslizando de lado (no al hacer scroll) ---------- */
+function protegerDeslizadores(){
+  $$('input[type=range]').forEach(r=>{
+    if(r.dataset.prot)return; r.dataset.prot='1';
+    const caja=document.createElement('span'); caja.className='rangoCaja';
+    if(r.style.flex)caja.style.flex=r.style.flex;
+    r.parentNode.insertBefore(caja,r); caja.appendChild(r);
+    let ini=null,activo=false;
+    caja.addEventListener('pointerdown',e=>{ini={x:e.clientX,y:e.clientY,id:e.pointerId};activo=false;});
+    caja.addEventListener('pointermove',e=>{
+      if(!ini||e.pointerId!==ini.id)return;
+      const dx=e.clientX-ini.x,dy=e.clientY-ini.y;
+      if(!activo){
+        if(Math.abs(dy)>8&&Math.abs(dy)>=Math.abs(dx)){ini=null;return;}   // es scroll: no tocar
+        if(Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)){activo=true;try{caja.setPointerCapture(e.pointerId);}catch(_){}}
+        else return;
+      }
+      e.preventDefault(); fijar(e.clientX);
+    });
+    const fin=()=>{ini=null;activo=false;};
+    caja.addEventListener('pointerup',fin);caja.addEventListener('pointercancel',fin);
+    function fijar(cx){
+      const rc=r.getBoundingClientRect(),min=+r.min,max=+r.max,st=+(r.step||1),th=18;
+      let t=(cx-rc.left-th/2)/Math.max(1,rc.width-th); t=Math.max(0,Math.min(1,t));
+      const v=Math.round((min+t*(max-min))/st)*st;
+      if(+r.value!==v){r.value=v;r.dispatchEvent(new Event('input',{bubbles:true}));}
+    }
+  });
+}
+protegerDeslizadores();
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
