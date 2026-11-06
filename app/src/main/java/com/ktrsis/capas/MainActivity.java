@@ -1,6 +1,17 @@
 package com.ktrsis.capas;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.view.WindowManager;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.ArrayList;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -32,6 +43,11 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> esperaArchivo;
     private Uri compartidaPendiente;
     private boolean paginaLista;
+    private static final int PERMISO_MIC = 9;
+    private SpeechRecognizer reconocedor;
+    private Intent intentVoz;
+    private boolean escuchando;
+    private final Handler manejador = new Handler(Looper.getMainLooper());
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -132,6 +148,87 @@ public class MainActivity extends Activity {
         return id > 0 ? getResources().getDimensionPixelSize(id) : 0;
     }
 
+
+    /* ---------------- comandos de voz ---------------- */
+    private void js(String codigo) { if (web != null) web.evaluateJavascript(codigo, null); }
+
+    private void iniciarVoz() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMISO_MIC);
+            return;
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Toast.makeText(this, "Este teléfono no tiene reconocimiento de voz (instala o activa la app de Google)", Toast.LENGTH_LONG).show();
+            js("window.vozEstado&&vozEstado('no')");
+            return;
+        }
+        if (reconocedor == null) {
+            reconocedor = SpeechRecognizer.createSpeechRecognizer(this);
+            reconocedor.setRecognitionListener(oyente);
+        }
+        intentVoz = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intentVoz.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intentVoz.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-US");
+        intentVoz.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        intentVoz.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
+        intentVoz.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        escuchando = true;
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        try { reconocedor.startListening(intentVoz); } catch (Exception e) { reiniciarVoz(600); }
+        js("window.vozEstado&&vozEstado('on')");
+    }
+
+    private void detenerVoz() {
+        escuchando = false;
+        manejador.removeCallbacksAndMessages(null);
+        if (reconocedor != null) { try { reconocedor.cancel(); } catch (Exception ignored) {} }
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        js("window.vozEstado&&vozEstado('off')");
+    }
+
+    private void reiniciarVoz(long espera) {
+        if (!escuchando) return;
+        manejador.removeCallbacksAndMessages(null);
+        manejador.postDelayed(() -> {
+            if (!escuchando || reconocedor == null) return;
+            try { reconocedor.cancel(); reconocedor.startListening(intentVoz); }
+            catch (Exception e) { reiniciarVoz(800); }
+        }, espera);
+    }
+
+    private final RecognitionListener oyente = new RecognitionListener() {
+        @Override public void onResults(Bundle r) {
+            ArrayList<String> t = r.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (t != null && !t.isEmpty()) js("window.comandoVoz&&comandoVoz(" + new JSONArray(t) + ")");
+            reiniciarVoz(150);
+        }
+        @Override public void onPartialResults(Bundle r) {
+            ArrayList<String> t = r.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (t != null && !t.isEmpty()) js("window.vozParcial&&vozParcial(" + JSONObject.quote(t.get(0)) + ")");
+        }
+        @Override public void onError(int error) {
+            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) { detenerVoz(); return; }
+            reiniciarVoz(error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? 700 : 250);
+        }
+        @Override public void onReadyForSpeech(Bundle p) {}
+        @Override public void onBeginningOfSpeech() {}
+        @Override public void onRmsChanged(float v) {}
+        @Override public void onBufferReceived(byte[] b) {}
+        @Override public void onEndOfSpeech() {}
+        @Override public void onEvent(int t, Bundle p) {}
+    };
+
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(req, perms, res);
+        if (req != PERMISO_MIC) return;
+        if (res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED) iniciarVoz();
+        else { Toast.makeText(this, "Sin permiso de micrófono no puedo escuchar comandos", Toast.LENGTH_LONG).show(); js("window.vozEstado&&vozEstado('off')"); }
+    }
+
+    @Override protected void onPause() { super.onPause(); if (escuchando) detenerVoz(); }
+    @Override protected void onDestroy() { super.onDestroy(); if (reconocedor != null) reconocedor.destroy(); }
+
     @SuppressWarnings("deprecation")
     @Override
     public void onBackPressed() {
@@ -141,6 +238,10 @@ public class MainActivity extends Activity {
     }
 
     class Puente {
+        /** Prende o apaga la escucha de comandos de voz. */
+        @JavascriptInterface
+        public void voz(boolean prender) { runOnUiThread(() -> { if (prender) iniciarVoz(); else detenerVoz(); }); }
+
         /** Copia texto al portapapeles. */
         @JavascriptInterface
         public void copiar(String texto) {

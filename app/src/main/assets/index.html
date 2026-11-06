@@ -31,7 +31,13 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 /* editor */
 #editor{position:absolute;inset:0;display:flex;flex-direction:column}
 #top{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
-#top .t{flex:1;font-weight:600}
+#top .t{flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bMic.on{background:#1fa36a;border-color:#1fa36a;color:#fff;animation:pulso 1.6s infinite}
+@keyframes pulso{50%{box-shadow:0 0 0 6px #1fa36a33}}
+#vozTxt{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#000c;color:#fff;padding:6px 12px;border-radius:16px;font-size:13px;max-width:90%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#menuV .cmd{font-size:13px;color:var(--mut);line-height:1.55;max-height:30vh;overflow-y:auto;background:var(--bg);border-radius:10px;padding:10px}
+#menuV .cmd b{color:var(--tx);font-weight:600}
+#menuV input[type=text]{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit}
 #top button{padding:7px 11px;border-radius:10px;font-size:14px}
 #lienzo{flex:1;position:relative;overflow:hidden;touch-action:none;background:#fff}
 #lienzo canvas{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:auto}
@@ -80,9 +86,9 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 .estf select{background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px;font:inherit;font-size:13px}
 #panel{max-height:52vh;overflow-y:auto}
 #menuP textarea{width:100%;height:34vh;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px;font:13px/1.4 system-ui,sans-serif;resize:none}
-#menuG,#menuE,#menuP{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
-#menuG .hoja,#menuE .hoja,#menuP .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
-#menuG .ht,#menuE .ht,#menuP .ht{font-weight:600;margin-bottom:2px}
+#menuG,#menuE,#menuP,#menuV{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
+#menuG .hoja,#menuE .hoja,#menuP .hoja,#menuV .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
+#menuG .ht,#menuE .ht,#menuP .ht,#menuV .ht{font-weight:600;margin-bottom:2px}
 #menuG button,#menuE button{text-align:left;font-weight:600}
 #menuG small,#menuE small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:2px}
 </style>
@@ -102,11 +108,13 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
   <div id="top">
     <button id="bVolver">‹ Inicio</button>
     <div class="t" id="titulo">Capas</div>
+    <button id="bMic" title="Comandos de voz">🎤</button>
     <button id="bGuardar">Guardar</button>
   </div>
   <div id="lienzo">
     <canvas id="cv"></canvas>
     <div id="aviso" class="hide"></div>
+    <div id="vozTxt" class="hide"></div>
     <div id="cargando" class="hide">Procesando…</div>
   </div>
   <div id="panel">
@@ -270,6 +278,35 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <button class="big" data-op="1">Capas transparentes<small>Para apilar en Procreate o Ibis Paint</small></button>
     <button class="big" data-op="2">Guías<small>Rosado = sin tinta, gris plano = donde va la capa</small></button>
     <button class="big" data-op="3">Las dos</button>
+  </div>
+</div>
+
+<div id="menuV" class="hide">
+  <div class="hoja">
+    <div class="ht">Comandos de voz</div>
+    <div class="fila" style="margin:0">
+      <label style="min-width:auto">Palabra clave</label>
+      <input type="text" id="txtClave" value="stencil" autocomplete="off">
+    </div>
+    <div class="fila" style="margin:0">
+      <button id="bClaveReq" class="on" style="flex:1">Pedir palabra clave: sí</button>
+    </div>
+    <div class="cmd">
+      Di la palabra clave y luego el comando, por ejemplo <b>"Stencil, solo capa 2 y 3"</b>. También puedes decir solo <b>"Stencil"</b>, esperar un segundo y decir el comando.<br><br>
+      <b>capa 2</b> · va a esa capa (en "Ir sumando" muestra de la 1 a la 2)<br>
+      <b>solo capa 4</b> · <b>solo capa 2 y 3</b> · muestra solo esas<br>
+      <b>sí capa 2</b> · <b>pon / muestra capa 2</b> · la prende<br>
+      <b>no capa 2</b> · <b>quita / oculta capa 2</b> · la apaga<br>
+      <b>todas</b> · <b>ninguna</b> · <b>siguiente</b> · <b>anterior</b><br>
+      <b>original</b> · <b>real</b> · <b>gris</b> · <b>guía</b><br>
+      <b>fantasma sí / no</b> · <b>contorno sí / no</b><br>
+      <b>centrar</b> · <b>acercar</b> · <b>alejar</b><br>
+      <b>ver capas</b> · <b>ver esténcil</b><br>
+      <b>deja de escuchar</b> · apaga el micrófono<br><br>
+      En la pestaña Esténcil, los comandos de capa prenden o apagan las sombras del esténcil.
+    </div>
+    <button class="big pri" id="bVozOnOff">Activar micrófono</button>
+    <button id="bCerrarV">Cerrar</button>
   </div>
 </div>
 
@@ -524,7 +561,7 @@ $('#bFantasma').onclick=e=>{S.fantasma=!S.fantasma;e.target.textContent='Fantasm
 $('#bContorno').onclick=e=>{S.contorno=!S.contorno;e.target.textContent='Contorno: '+(S.contorno?'sí':'no');e.target.classList.toggle('on',S.contorno);pintar();};
 $('#bAnt').onclick=()=>irA(S.actual-1);
 $('#bSig').onclick=()=>irA(S.actual+1);
-$('#bVolver').onclick=()=>{$('#editor').classList.add('hide');$('#inicio').classList.remove('hide');modoTocar(false);};
+$('#bVolver').onclick=()=>{ if(VOZ.on)prenderVoz(false);$('#editor').classList.add('hide');$('#inicio').classList.remove('hide');modoTocar(false);};
 $('#bTocar').onclick=()=>modoTocar(!S.tocar);
 $('#bDeshacer').onclick=()=>{if(!S.huecos.length)return;S.huecos.pop();ocupado(()=>{calcFondo();calcCapas();pintar();});};
 function modoTocar(on){S.tocar=on;$('#bTocar').classList.toggle('on',on);
@@ -1013,6 +1050,105 @@ function protegerDeslizadores(){
   });
 }
 protegerDeslizadores();
+
+
+/* ---------- comandos de voz ---------- */
+const VOZ={on:false,clave:'stencil',pedir:true,armadoHasta:0,rec:null};
+try{const g=JSON.parse(localStorage.getItem('voz')||'{}');if(g.clave)VOZ.clave=g.clave;if(g.pedir===false)VOZ.pedir=false;}catch(_){}
+$('#txtClave').value=VOZ.clave;
+function guardarVoz(){try{localStorage.setItem('voz',JSON.stringify({clave:VOZ.clave,pedir:VOZ.pedir}));}catch(_){}}
+function pintarVozUI(){
+  $('#bMic').classList.toggle('on',VOZ.on);
+  $('#bVozOnOff').textContent=VOZ.on?'Apagar micrófono':'Activar micrófono';
+  $('#bClaveReq').textContent='Pedir palabra clave: '+(VOZ.pedir?'sí':'no');$('#bClaveReq').classList.toggle('on',VOZ.pedir);
+  if(!VOZ.on)$('#vozTxt').classList.add('hide');
+}
+$('#bMic').onclick=()=>{pintarVozUI();$('#menuV').classList.remove('hide');};
+$('#bCerrarV').onclick=()=>$('#menuV').classList.add('hide');
+$('#menuV').onclick=e=>{ if(e.target.id==='menuV')$('#menuV').classList.add('hide'); };
+$('#txtClave').oninput=e=>{VOZ.clave=e.target.value.trim()||'stencil';guardarVoz();};
+$('#bClaveReq').onclick=()=>{VOZ.pedir=!VOZ.pedir;guardarVoz();pintarVozUI();};
+$('#bVozOnOff').onclick=()=>{ prenderVoz(!VOZ.on); $('#menuV').classList.add('hide'); };
+function prenderVoz(on){
+  if(window.Android&&Android.voz){Android.voz(on);return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;   // navegador (para pruebas)
+  if(!SR){aviso('La voz solo funciona en la app instalada',3000);return;}
+  if(on){const r=new SR();r.lang='es-US';r.continuous=true;r.interimResults=true;r.maxAlternatives=5;
+    r.onresult=ev=>{for(let i=ev.resultIndex;i<ev.results.length;i++){const res=ev.results[i];
+      if(res.isFinal)comandoVoz([...res].map(a=>a.transcript));else vozParcial(res[0].transcript);}};
+    r.onend=()=>{if(VOZ.on)try{r.start();}catch(_){}};
+    VOZ.rec=r;r.start();vozEstado('on');}
+  else{VOZ.on=false;try{VOZ.rec&&VOZ.rec.stop();}catch(_){}vozEstado('off');}
+}
+window.vozEstado=e=>{VOZ.on=e==='on';pintarVozUI();
+  if(e==='on')mostrarVoz(`Escuchando… di "${VOZ.pedir?cap1(VOZ.clave)+', ':''}capa 2"`);};
+let tVoz=0;
+function mostrarVoz(t,ms){const v=$('#vozTxt');v.textContent='🎤 '+t;v.classList.remove('hide');clearTimeout(tVoz);
+  if(ms)tVoz=setTimeout(()=>{if(VOZ.on)v.textContent='🎤 Escuchando…';else v.classList.add('hide');},ms);}
+window.vozParcial=t=>{if(VOZ.on)mostrarVoz(t);};
+const cap1=t=>t.charAt(0).toUpperCase()+t.slice(1);
+const norm=t=>(' '+t+' ').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+  .replace(/[^a-z0-9ñ ]+/g,' ').replace(/([a-z])(\d)/g,'$1 $2').replace(/(\d)([a-z])/g,'$1 $2').replace(/\s+/g,' ');
+const NUM={uno:1,una:1,primera:1,primero:1,dos:2,segunda:2,segundo:2,tres:3,tercera:3,tercero:3,cuatro:4,cuarta:4,cuarto:4,
+  cinco:5,quinta:5,quinto:5,seis:6,sexta:6,sexto:6};
+function claves(){ // la palabra clave y cómo suele transcribirse "stencil"
+  const c=norm(VOZ.clave).trim(),l=[c];
+  if(/^e?stenc?s?il$/.test(c.replace(/ /g,'')))l.push('stencil','estencil','estensil','stensil','es tencil','es tensil','extensil','esencial','sencil','tencil','stencils','estenciles');
+  return l;
+}
+window.comandoVoz=alts=>{
+  const ahora=Date.now();
+  for(const alt of alts){
+    let t=norm(alt), tiene=false;
+    for(const c of claves()){const i=t.indexOf(' '+c+' ');if(i>=0){t=' '+t.slice(i+c.length+1);tiene=true;break;}}
+    const armado=ahora<VOZ.armadoHasta;
+    if(VOZ.pedir&&!tiene&&!armado)continue;
+    if(tiene&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);return;}
+    const r=ejecutarVoz(t);
+    if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);return;}
+  }
+  if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta))mostrarVoz('No entendí: "'+alts[0]+'"',2500);
+};
+function numeros(t){const out=[];for(const w of t.trim().split(' ')){if(/^\d+$/.test(w))out.push(+w);else if(NUM[w])out.push(NUM[w]);}
+  return out.filter(n=>n>=1&&n<=S.N);}
+const tiene=(t,...ws)=>ws.some(w=>t.includes(' '+w+' '));
+function ejecutarVoz(t){
+  if(!S.capa)return null;
+  if(tiene(t,'deja de escuchar','apaga el microfono','apagar microfono','silencio','para de escuchar')){prenderVoz(false);return 'Micrófono apagado';}
+  if(tiene(t,'ver estencil','modo estencil','pestana estencil','ver stencil')){$('[data-tab=est]').click();return 'Esténcil';}
+  if(tiene(t,'ver capas','modo capas')){$('[data-tab=ver]').click();return 'Ver capas';}
+  if(tiene(t,'centrar','centra','encuadrar','ajustar')){ajustarVista();return 'Centrado';}
+  if(tiene(t,'acercar','acerca','zoom','mas cerca')){zoomVoz(1.5);return 'Acercar';}
+  if(tiene(t,'alejar','aleja','mas lejos')){zoomVoz(1/1.5);return 'Alejar';}
+  const neg=tiene(t,'no','quita','quitar','quitale','oculta','ocultar','apaga','apagar','sin','esconde','esconder','fuera','borra');
+  const pos=tiene(t,'si','pon','poner','ponle','muestra','mostrar','muestrame','agrega','agregar','prende','prender','con','activa','enciende');
+  if(tiene(t,'fantasma')){S.fantasma=neg?false:pos?true:!S.fantasma;$('#bFantasma').textContent='Fantasma: '+(S.fantasma?'sí':'no');$('#bFantasma').classList.toggle('on',S.fantasma);pintar();return 'Fantasma: '+(S.fantasma?'sí':'no');}
+  if(tiene(t,'contorno')){S.contorno=neg?false:pos?true:!S.contorno;$('#bContorno').textContent='Contorno: '+(S.contorno?'sí':'no');$('#bContorno').classList.toggle('on',S.contorno);pintar();return 'Contorno: '+(S.contorno?'sí':'no');}
+  const vistas=[['original','orig','Original'],['real','real','Real'],['gris','plano','Gris plano'],['plano','plano','Gris plano'],['guia','guia','Guía']];
+  if(S.tab!=='est')for(const [w,v,nm] of vistas)if(tiene(t,w)){$(`#segVista [data-v=${v}]`).click();return 'Vista: '+nm;}
+  const enEst=S.tab==='est';
+  if(!enEst&&S.tab!=='ver')$('[data-tab=ver]').click();
+  const arr=()=>enEst?(asegurarEst(),S.estIncl):S.vis;
+  const listo=msg=>{if(enEst)dibujarEstCapas();pintar();return msg;};
+  if(tiene(t,'siguiente','sigue','proxima','adelante')&&!enEst){irA(S.actual+1);return 'Capa '+(S.actual+1);}
+  if(tiene(t,'anterior','atras','regresa','devuelve')&&!enEst){irA(S.actual-1);return 'Capa '+(S.actual+1);}
+  if(tiene(t,'todas','todo','completo','completa')&&!neg){arr().fill(true);return listo('Todas las capas');}
+  const ns=numeros(t);
+  if(!ns.length&&(tiene(t,'ninguna','nada')||(tiene(t,'todas','todo')&&neg))){arr().fill(false);return listo('Ninguna capa');}
+  if(!ns.length)return null;
+  const lista=ns.length===1?'capa '+ns[0]:'capas '+ns.slice(0,-1).join(', ')+' y '+ns[ns.length-1];
+  if(tiene(t,'solo','solamente','unicamente','nada mas','sola','solas')){const a=arr();for(let k=0;k<a.length;k++)a[k]=ns.includes(k+1);
+    if(!enEst)S.actual=ns[ns.length-1]-1;return listo('Solo '+lista);}
+  if(neg){const a=arr();ns.forEach(n=>a[n-1]=false);return listo('Sin '+lista);}
+  if(pos){const a=arr();ns.forEach(n=>a[n-1]=true);if(!enEst)S.actual=ns[ns.length-1]-1;return listo('Con '+lista);}
+  if(tiene(t,'hasta')&&!enEst){const n=Math.max(...ns);S.vis=S.vis.map((_,k)=>k<n);S.actual=n-1;pintar();return 'Capas 1 a '+n;}
+  if(!tiene(t,'capa','capas','la','el','numero'))return null;
+  if(enEst){const a=arr();for(let k=0;k<a.length;k++)a[k]=ns.includes(k+1);return listo('Solo '+lista);}
+  if(ns.length===1){irA(ns[0]-1);return 'Capa '+ns[0];}
+  S.vis=S.vis.map((_,k)=>ns.includes(k+1));S.actual=ns[ns.length-1]-1;pintar();return 'Solo '+lista;
+}
+function zoomVoz(k){const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2;
+  V.x=px-(px-V.x)*k;V.y=py-(py-V.y)*k;V.s*=k;aplicarVista();}
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
