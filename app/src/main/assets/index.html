@@ -1543,8 +1543,9 @@ setTimeout(aplicarConfigVoz,300);
 
 /* ---------- Viernes con Claude ---------- */
 const IA={estilo:'cercana',vozTts:'',vel:1,tono:1,on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
-try{const g=JSON.parse(localStorage.getItem('ia')||'{}');Object.assign(IA,{estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
-const guardarIA=()=>{try{localStorage.setItem('ia',JSON.stringify({estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
+try{const g=JSON.parse(localStorage.getItem('ia')||'{}');IA.claves=g.claves||{};if(g.key&&!IA.claves[g.prov||'gemini'])IA.claves[g.prov||'gemini']=g.key;
+  Object.assign(IA,{estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
+const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
 const iaLista=()=>IA.on&&(IA.prov==='propio'?IA.url.length>8:IA.key.length>15);
 function decir(t){ if(IA.voz&&t&&window.Android&&Android.hablar)Android.hablar(t); }
 function estadoTexto(){
@@ -1612,6 +1613,7 @@ function elegirModelo(listo){
 }
 const elegirModeloGemini=elegirModelo;
 const esNube=()=>!!PROV[IA.prov];
+const PROV_NOMBRE=()=>IA.prov==='claude'?'Claude':PROV[IA.prov]?PROV[IA.prov].nombre:'el servidor';
 function preguntarClaude(texto,extra={}){
   if(esNube()&&IA.key&&!IA.modeloLibre){elegirModelo(ok=>{if(ok)preguntarClaude(texto,extra);else{const m='No pude conectar con '+PROV[IA.prov].nombre+', revisa la clave';mostrarVoz(m,4000);decir(m);}});return;}
   if(!(IA.prov==='propio'?IA.url:IA.key)){mostrarVoz('Falta configurar el cerebro (🎤 › Inteligencia)',4000);decir('Me falta configurar el cerebro');return;}
@@ -1647,6 +1649,7 @@ window.iaRespuesta=(id,codigo,texto)=>{
       codigo===429?(/quota|per day|exhausted/i.test(m)?'Se acabó el cupo gratis de hoy en '+quien:quien+' está recibiendo muchas peticiones, intenta en un momento'):codigo===529||codigo>=500?quien+' está saturado ahora, intenta en un rato':
       codigo===0?(IA.prov==='propio'?'No pude conectarme al servidor':'No pude conectarme a internet'):codigo===404?'El modelo o la dirección no existe':'Error de '+quien;
     logD('🧠 ✖ '+codigo+' '+m.slice(0,160));
+    IA.ultimoError=codigo+' '+m.slice(0,120);
     // saturado o conexión cortada: reintentar solo (y en Gemini, con otro modelo gratis)
     const pasajero=codigo===0||codigo===503||codigo===529||codigo===500||codigo===502||codigo===504||(codigo===429&&!/quota|per day|exhausted/i.test(m));
     if(pasajero&&p.intentos<3){
@@ -1661,7 +1664,7 @@ window.iaRespuesta=(id,codigo,texto)=>{
       mostrarVoz('🧠 Reintentando…',3000);return;
     }
     if(esNube()&&(codigo===404||codigo===400&&/model/i.test(m)||/not found|is not supported|decommissioned/i.test(m))&&!p.reintento){IA.modeloLibre='';elegirModelo(ok=>{if(ok){p.reintento=true;preguntarClaude(p.texto);}else{mostrarVoz(msg,4500);decir(msg);}});return;}
-    mostrarVoz(msg,4500);decir(msg);return;
+    mostrarVoz(msg+' ('+codigo+(m?': '+m.slice(0,70):'')+')',7000);decir(msg);return;
   }
   const crudo=(j.content?(j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join(''):(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'').trim();
   let plan=null;try{const a=crudo.indexOf('{'),b=crudo.lastIndexOf('}');plan=JSON.parse(crudo.slice(a,b+1));}catch(_){}
@@ -1699,13 +1702,16 @@ function pintarIAUI(){
 }
 $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)aviso('Pega tu clave de API de Claude',3000);};
 $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
-$('#txtKey').onchange=e=>{IA.key=e.target.value.trim();guardarIA();};
+const limpiarClave=v=>v.replace(/[\s"'“”]/g,'');
+$('#txtKey').oninput=$('#txtKey').onchange=e=>{IA.key=limpiarClave(e.target.value);guardarIA();};
 $('#selModelo').onchange=e=>{IA.modelo=e.target.value;guardarIA();};
-$('#selProv').onchange=e=>{IA.prov=e.target.value;IA.hist=[];IA.alternos=null;if(esNube())IA.modeloLibre='';guardarIA();pintarIAUI();};
+$('#selProv').onchange=e=>{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;IA.prov=e.target.value;IA.key=(IA.claves[IA.prov]||'');IA.hist=[];IA.alternos=null;if(esNube())IA.modeloLibre='';guardarIA();pintarIAUI();};
 $('#txtUrl').onchange=e=>{IA.url=e.target.value.trim();guardarIA();};
 $('#txtModelo').onchange=e=>{IA.modeloLibre=e.target.value.trim();guardarIA();};
-$('#bProbarIA').onclick=()=>{IA.key=$('#txtKey').value.trim();IA.url=$('#txtUrl').value.trim();IA.modeloLibre=$('#txtModelo').value.trim();guardarIA();
+$('#bProbarIA').onclick=()=>{IA.key=limpiarClave($('#txtKey').value);IA.url=$('#txtUrl').value.trim();IA.modeloLibre=$('#txtModelo').value.trim();guardarIA();
   if(IA.prov==='propio'?!IA.url:!IA.key){aviso(IA.prov==='propio'?'Primero pon la dirección del servidor':'Primero pega la clave',2500);return;}
+  const pref={gemini:'AIza',groq:'gsk_',openrouter:'sk-or-',claude:'sk-ant-'}[IA.prov];
+  if(pref&&!IA.key.startsWith(pref)){aviso('Ojo: esa clave no parece de '+PROV_NOMBRE()+' (debería empezar con '+pref+')',4500);}
   $('#menuV').classList.add('hide');preguntarClaude('Hola, preséntate en una frase y dime que ya estás conectada.');};
 $('#bPreguntarIA').onclick=()=>{const t=$('#txtProbar').value.trim();if(!t)return;$('#menuV').classList.add('hide');preguntarClaude(t);};
 
