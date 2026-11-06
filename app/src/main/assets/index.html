@@ -1395,12 +1395,12 @@ window.comandoVoz=alts=>{
     if(tieneC&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);decir('Dime');return;}
     if(!elegido)elegido={alt,t};
     // frases largas o preguntas van directo a Claude (si está activo)
-    if(iaLista()&&esParaClaude(t)){VOZ.armadoHasta=0;logD('   · "'+alt+'" → 🧠 a Claude');preguntarClaude(alt);return;}
+    if(iaLista()&&esParaClaude(t)){VOZ.armadoHasta=0;logD('   · "'+alt+'" → 🧠 a la IA');preguntarClaude(alt);return;}
     const r=ejecutarFrase(t);
     logD('   · "'+alt+'" → '+(r?'✔ '+r:'no es un comando'));
     if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);decir(paraDecir(r));return;}
   }
-  if(elegido&&iaLista()){VOZ.armadoHasta=0;logD('   · "'+elegido.alt+'" → 🧠 a Claude (no era comando)');preguntarClaude(elegido.alt);return;}
+  if(elegido&&iaLista()){VOZ.armadoHasta=0;logD('   · "'+elegido.alt+'" → 🧠 a la IA (no era comando)');preguntarClaude(elegido.alt);return;}
   if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta||elegido)){mostrarVoz('No entendí: "'+alts[0]+'"',2500);if(elegido)decir('No te entendí');}
 };
 function esParaClaude(t){
@@ -1585,17 +1585,18 @@ function elegirModeloGemini(listo){
     const ok=ids.filter(i=>/^gemini-/.test(i)&&/flash/.test(i)&&!/(image|tts|audio|live|thinking|exp|preview|embedding|vision)/.test(i));
     const ver=i=>parseFloat((i.match(/gemini-(\d+(?:\.\d+)?)/)||[0,0])[1]);
     ok.sort((a,b)=>ver(b)-ver(a)||(/lite/.test(a)?-1:1)-(/lite/.test(b)?-1:1));
-    IA.modeloLibre=ok[0]||ids.find(i=>/^gemini-/.test(i))||'';guardarIA();
+    IA.alternos=ok.slice();
+    if(!IA.soloLista)IA.modeloLibre=ok[0]||ids.find(i=>/^gemini-/.test(i))||'';guardarIA();
     logD('🧠 modelo elegido: '+IA.modeloLibre);if($('#txtModelo'))$('#txtModelo').value=IA.modeloLibre;
     listo(!!IA.modeloLibre);
   });
 }
-function preguntarClaude(texto){
-  if(IA.prov==='gemini'&&IA.key&&!IA.modeloLibre){elegirModeloGemini(ok=>{if(ok)preguntarClaude(texto);else{const m='No pude conectar con Gemini, revisa la clave';mostrarVoz(m,4000);decir(m);}});return;}
+function preguntarClaude(texto,extra={}){
+  if(IA.prov==='gemini'&&IA.key&&!IA.modeloLibre){elegirModeloGemini(ok=>{if(ok)preguntarClaude(texto,extra);else{const m='No pude conectar con Gemini, revisa la clave';mostrarVoz(m,4000);decir(m);}});return;}
   if(!(IA.prov==='propio'?IA.url:IA.key)){mostrarVoz('Falta configurar el cerebro (🎤 › Inteligencia)',4000);decir('Me falta configurar el cerebro');return;}
   const id='c'+(++nPeticion);
-  IA.pend[id]={texto,t0:Date.now()};
-  mostrarVoz('🧠 Pensando…');
+  IA.pend[id]={texto,t0:extra.t0||Date.now(),intentos:extra.intentos||0,modelo:extra.modelo||'',reintento:extra.reintento};
+  mostrarVoz(extra.intentos?'🧠 Reintentando…':'🧠 Pensando…');
   const mensajes=[...IA.hist.slice(-8),{role:'user',content:`[Estado actual de la app: ${estadoTexto()}]\nBran dijo: "${texto}"`}];
   let url,enc,cuerpo;
   if(IA.prov==='claude'){url='https://api.anthropic.com/v1/messages';enc={'x-api-key':IA.key,'anthropic-version':'2023-06-01'};
@@ -1603,7 +1604,7 @@ function preguntarClaude(texto){
   else{ // formato compatible con OpenAI: Gemini o servidor propio (Ollama, LM Studio...)
     url=IA.prov==='gemini'?'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions':IA.url.replace(/\/+$/,'')+(/\/chat\/completions$/.test(IA.url)?'':'/v1/chat/completions');
     enc=IA.key?{'Authorization':'Bearer '+IA.key}:{};
-    cuerpo={model:IA.prov==='gemini'?IA.modeloLibre:(IA.modeloLibre||'llama3.1'),max_tokens:400,temperature:.3,
+    cuerpo={model:extra.modelo||(IA.prov==='gemini'?IA.modeloLibre:(IA.modeloLibre||'llama3.1')),max_tokens:400,temperature:.3,
       messages:[{role:'system',content:sistemaIA()},...mensajes]};}
   const nombre=IA.prov==='claude'?'Claude '+IA.modelo:IA.prov==='gemini'?'Gemini '+cuerpo.model:'servidor '+cuerpo.model;
   logD('🧠 → '+nombre+': '+texto);
@@ -1620,10 +1621,23 @@ window.iaRespuesta=(id,codigo,texto)=>{
   if(codigo!==200||!j||j.type==='error'||j.error){
     const m=(j&&j.error&&(j.error.message||(typeof j.error==='string'?j.error:'')))||(Array.isArray(j)&&j[0]&&j[0].error&&j[0].error.message)||texto||'';
     const quien=IA.prov==='claude'?'Claude':IA.prov==='gemini'?'Gemini':'el servidor';
-    const msg=codigo===401||codigo===403?'La clave de '+quien+' no es válida':codigo===402||/credit|balance|quota/i.test(m)?'No hay saldo o cupo en '+quien:
-      codigo===429?quien+' está recibiendo muchas peticiones, intenta en un momento':codigo===529||codigo>=500?quien+' está ocupado, intenta otra vez':
+    const msg=codigo===401||codigo===403?'La clave de '+quien+' no es válida':codigo===429&&/quota|per day|exhausted/i.test(m)?'Se acabó el cupo gratis de hoy en '+quien+', mañana se renueva':codigo===402||/credit|balance/i.test(m)?'No hay saldo en '+quien:
+      codigo===429?(/quota|per day|exhausted/i.test(m)?'Se acabó el cupo gratis de hoy en '+quien:quien+' está recibiendo muchas peticiones, intenta en un momento'):codigo===529||codigo>=500?quien+' está saturado ahora, intenta en un rato':
       codigo===0?(IA.prov==='propio'?'No pude conectarme al servidor':'No pude conectarme a internet'):codigo===404?'El modelo o la dirección no existe':'Error de '+quien;
     logD('🧠 ✖ '+codigo+' '+m.slice(0,160));
+    // saturado o conexión cortada: reintentar solo (y en Gemini, con otro modelo gratis)
+    const pasajero=codigo===0||codigo===503||codigo===529||codigo===500||codigo===502||codigo===504||(codigo===429&&!/quota|per day|exhausted/i.test(m));
+    if(pasajero&&p.intentos<3){
+      const n=p.intentos+1;
+      const conAlterno=()=>{let modelo='';
+        if(IA.prov==='gemini'&&(codigo===503||codigo===429||codigo===529)&&n>=2){
+          const usado=p.modelo||IA.modeloLibre;const alt=(IA.alternos||[]).filter(x=>x!==usado);modelo=alt[(n-2)%Math.max(1,alt.length)]||'';}
+        if(modelo)logD('🧠 ↻ probando con '+modelo);else logD('🧠 ↻ reintento '+n);
+        setTimeout(()=>preguntarClaude(p.texto,{intentos:n,modelo,t0:p.t0,reintento:p.reintento}),900*n);};
+      if(IA.prov==='gemini'&&n>=2&&!(IA.alternos&&IA.alternos.length)){IA.soloLista=true;elegirModeloGemini(()=>{IA.soloLista=false;conAlterno();});}
+      else conAlterno();
+      mostrarVoz('🧠 Reintentando…',3000);return;
+    }
     if(IA.prov==='gemini'&&(codigo===404||/not found|is not supported/i.test(m))&&!p.reintento){IA.modeloLibre='';elegirModeloGemini(ok=>{if(ok){p.reintento=true;preguntarClaude(p.texto);}else{mostrarVoz(msg,4500);decir(msg);}});return;}
     mostrarVoz(msg,4500);decir(msg);return;
   }
