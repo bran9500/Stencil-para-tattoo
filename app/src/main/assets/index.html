@@ -223,6 +223,10 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
         <button id="bImportG" style="flex:1">⬆ Importar líneas</button>
         <input type="file" id="archivoG" accept="image/*" class="hide">
       </div>
+      <div class="fila" id="filaGemGros" style="display:none">
+        <label>Grosor Gemini</label>
+        <input type="range" id="rGemGros" min="0" max="8" value="0"><span class="v" id="vGemGros">orig</span>
+      </div>
       <div class="fila" id="filaFuente" style="display:none">
         <label style="min-width:auto">Líneas</label>
         <div class="seg" id="segFuente">
@@ -398,7 +402,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <div class="ht" style="margin-top:4px">Inteligencia</div>
     <div class="nota" style="margin:0">Con inteligencia puedes hablarle normal y hacerle preguntas: entiende frases largas, hace varias cosas a la vez y te responde. Los comandos simples siguen funcionando sin internet.</div>
     <button id="bIA">Usar inteligencia: no</button>
-    <select id="selProv" class="dsel"><option value="claude">Cerebro: Claude</option><option value="gemini">Cerebro: Gemini</option><option value="propio">Cerebro: servidor propio (Ollama, LM Studio…)</option></select>
+    <select id="selProv" class="dsel"><option value="gemini">Cerebro: Gemini (gratis)</option><option value="claude">Cerebro: Claude (de pago)</option><option value="propio">Cerebro: servidor propio (Ollama, LM Studio…)</option></select>
     <input type="text" id="txtUrl" placeholder="Dirección del servidor, ej: http://192.168.1.20:11434" autocomplete="off">
     <input type="password" id="txtKey" placeholder="Clave de API" autocomplete="off">
     <select id="selModelo" class="dsel"><option value="claude-haiku-5-5">Haiku · rápido y barato (recomendado)</option><option value="claude-sonnet-5-5">Sonnet · más inteligente, un poco más lento</option></select>
@@ -482,7 +486,7 @@ function prepararImagen(img,tol){
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
   const d=x.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
   for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
-  S.W=w;S.H=h;S.edits=[];if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.fuente='auto';S.gris=g;
+  S.W=w;S.H=h;S.edits=[];if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.gemGros=0;if($('#rGemGros')){$('#rGemGros').value=0;$('#vGemGros').textContent='orig';$('#filaGemGros').style.display='none';}S.fuente='auto';S.gris=g;
   if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';}S.suave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
   const cv=$('#cv');cv.width=w;cv.height=h;
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
@@ -1137,7 +1141,7 @@ $('#archivoG').onchange=e=>{
   img.onerror=()=>alert('No se pudo abrir la imagen.'); img.src=url; e.target.value='';
 };
 function importarGemini(img){
-  let w=img.naturalWidth,h=img.naturalHeight; const k=Math.min(1,2400/Math.max(w,h)); w=Math.round(w*k);h=Math.round(h*k);
+  let w=img.naturalWidth,h=img.naturalHeight; const objetivo=Math.max(1200,Math.min(2200,Math.max(S.W,S.H))); const k=objetivo/Math.max(w,h); w=Math.round(w*k);h=Math.round(h*k);
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
   const im=x.getImageData(0,0,w,h),d=im.data;
@@ -1146,7 +1150,9 @@ function importarGemini(img){
     d[j]=d[j+1]=d[j+2]=0; d[j+3]=a; }
   x.putImageData(im,0,0);
   const s=Math.min(S.W/w,S.H/h);
-  S.gem={cv:c,w,h,cx:S.W/2,cy:S.H/2,s,r:0,ini:{cx:S.W/2,cy:S.H/2,s,r:0}};
+  const M=new Uint8Array(w*h);for(let i=0,j=3;i<M.length;i++,j+=4)M[i]=d[j]>110?1:0;
+  S.gem={cv:c,w,h,cx:S.W/2,cy:S.H/2,s,r:0,ini:{cx:S.W/2,cy:S.H/2,s,r:0},mask:M,esq:null,cvs:{}};
+  $('#filaGemGros').style.display='flex';
   S.fuente='gemini'; S.lineasCv=null;
   $('#filaFuente').style.display='flex';$('#bAlinear').style.display='';
   $$('#segFuente button').forEach(b=>b.classList.toggle('on',b.dataset.v==='gemini'));
@@ -1154,6 +1160,8 @@ function importarGemini(img){
   elegirHerr('alinear');
   aviso('Ajusta con los dedos hasta que calce y toca Listo',4000);
 }
+$('#rGemGros').oninput=e=>{S.gemGros=+e.target.value;$('#vGemGros').textContent=S.gemGros||'orig';S.gemCache=null;
+  clearTimeout(tEst);tEst=setTimeout(()=>ocupado(pintar),150);};
 seg('#segFuente',v=>{S.fuente=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
 $('#bAlinReset').onclick=()=>{if(S.gem){Object.assign(S.gem,S.gem.ini);pintar();}};
 $('#bAlinListo').onclick=()=>elegirHerr('ver');
@@ -1166,9 +1174,9 @@ function elegirHerr(v){
 }
 function mostrarAlin(on){const a=$('#aviso');clearTimeout(tAviso);
   if(on){a.textContent='Alineando líneas de Gemini · toca Listo al terminar';a.classList.remove('hide');}else a.classList.add('hide');}
-function dibujarGem(ctx){
+function dibujarGem(ctx,fuente){
   const G=S.gem; ctx.save(); ctx.translate(G.cx,G.cy); ctx.rotate(G.r); ctx.scale(G.s,G.s);
-  ctx.drawImage(G.cv,-G.w/2,-G.h/2); ctx.restore();
+  ctx.drawImage(fuente||G.cv,-G.w/2,-G.h/2); ctx.restore();
 }
 // líneas del dibujo según la fuente elegida, en negro con transparencia (lienzo del tamaño del diseño)
 function lienzoLineasBase(){
@@ -1178,11 +1186,25 @@ function lienzoLineasBase(){
   if(usarGem) x.drawImage(gemGrueso(),0,0);
   return c;
 }
+function gemLienzoGrosor(){ // líneas de Gemini con grosor uniforme (0 = original)
+  const G=S.gem,g=S.gemGros||0; if(!g)return G.cv;
+  if(G.cvs[g])return G.cvs[g];
+  const {w,h,mask}=G; if(!G.esq)G.esq=adelgazar(mask,w,h);
+  const aLienzo=m=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),im=x.createImageData(w,h),d=im.data;
+    for(let i=0,j=3;i<m.length;i++,j+=4)if(m[i])d[j]=255;x.putImageData(im,0,0);return c;};
+  if(!G.esqCv)G.esqCv=aLienzo(G.esq);
+  if(!G.rellCv){const rr=Math.max(2,Math.round(Math.max(w,h)/450));G.rellCv=aLienzo(dilatar(erosionar(mask,w,h,rr),w,h,rr));}
+  const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+  const r=g<=1?0:g/2, R=Math.ceil(r);
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++)if(dx*dx+dy*dy<=r*r+.35)x.drawImage(G.esqCv,dx,dy);
+  x.drawImage(G.rellCv,0,0);
+  G.cvs[g]=c;return c;
+}
 function gemGrueso(){
-  const G=S.gem,r=Math.round((S.grosor-1)*Math.max(S.W,S.H)/1600);
-  const key=[G.cx,G.cy,G.s,G.r,r,S.W,S.H].join('|');
+  const G=S.gem,r=S.gemGros?0:Math.round((S.grosor-1)*Math.max(S.W,S.H)/1600);
+  const key=[G.cx,G.cy,G.s,G.r,r,S.W,S.H,S.gemGros||0].join('|');
   if(S.gemCache&&S.gemCache.key===key)return S.gemCache.cv;
-  const base=document.createElement('canvas');base.width=S.W;base.height=S.H;dibujarGem(base.getContext('2d'));
+  const base=document.createElement('canvas');base.width=S.W;base.height=S.H;dibujarGem(base.getContext('2d'),gemLienzoGrosor());
   let out=base;
   if(r>0){out=document.createElement('canvas');out.width=S.W;out.height=S.H;const o=out.getContext('2d');
     for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)if(dx*dx+dy*dy<=r*r+r)o.drawImage(base,dx,dy);}
@@ -1510,8 +1532,8 @@ setTimeout(aplicarConfigVoz,300);
 
 
 /* ---------- Viernes con Claude ---------- */
-const IA={on:false,prov:'claude',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
-try{const g=JSON.parse(localStorage.getItem('ia')||'{}');Object.assign(IA,{on:!!g.on,prov:g.prov||'claude',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
+const IA={on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
+try{const g=JSON.parse(localStorage.getItem('ia')||'{}');Object.assign(IA,{on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
 const guardarIA=()=>{try{localStorage.setItem('ia',JSON.stringify({on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
 const iaLista=()=>IA.on&&(IA.prov==='propio'?IA.url.length>8:IA.key.length>15);
 function decir(t){ if(IA.voz&&t&&window.Android&&Android.hablar)Android.hablar(t); }
@@ -1549,7 +1571,27 @@ Reglas:
 - Si te pregunta de tatuaje (agujas, diluciones, voltaje, técnica, cuidados), responde breve y útil, como colega con experiencia.
 - Si no entiendes, acciones [] y haz una pregunta corta.`;}
 let nPeticion=0;
+function httpIA(url,enc,cuerpo,cb){ // cuerpo null = GET
+  const id='h'+(++nPeticion);IA.pend[id]={cb};
+  if(window.Android&&Android.http)Android.http(id,url,JSON.stringify(enc),cuerpo?JSON.stringify(cuerpo):'');
+  else fetch(url,{method:cuerpo?'POST':'GET',headers:{'content-type':'application/json',...enc},body:cuerpo?JSON.stringify(cuerpo):undefined})
+    .then(async r=>iaRespuesta(id,r.status,await r.text())).catch(e=>iaRespuesta(id,0,JSON.stringify({error:{message:String(e)}})));
+}
+function elegirModeloGemini(listo){
+  logD('🧠 buscando el modelo gratis de Gemini…');
+  httpIA('https://generativelanguage.googleapis.com/v1beta/openai/models',{'Authorization':'Bearer '+IA.key},null,(cod,txt)=>{
+    let ids=[];try{ids=(JSON.parse(txt).data||[]).map(m=>String(m.id).replace(/^models\//,''));}catch(_){}
+    if(cod!==200||!ids.length){logD('🧠 ✖ no pude listar modelos ('+cod+')');listo(false,cod,txt);return;}
+    const ok=ids.filter(i=>/^gemini-/.test(i)&&/flash/.test(i)&&!/(image|tts|audio|live|thinking|exp|preview|embedding|vision)/.test(i));
+    const ver=i=>parseFloat((i.match(/gemini-(\d+(?:\.\d+)?)/)||[0,0])[1]);
+    ok.sort((a,b)=>ver(b)-ver(a)||(/lite/.test(a)?-1:1)-(/lite/.test(b)?-1:1));
+    IA.modeloLibre=ok[0]||ids.find(i=>/^gemini-/.test(i))||'';guardarIA();
+    logD('🧠 modelo elegido: '+IA.modeloLibre);if($('#txtModelo'))$('#txtModelo').value=IA.modeloLibre;
+    listo(!!IA.modeloLibre);
+  });
+}
 function preguntarClaude(texto){
+  if(IA.prov==='gemini'&&IA.key&&!IA.modeloLibre){elegirModeloGemini(ok=>{if(ok)preguntarClaude(texto);else{const m='No pude conectar con Gemini, revisa la clave';mostrarVoz(m,4000);decir(m);}});return;}
   if(!(IA.prov==='propio'?IA.url:IA.key)){mostrarVoz('Falta configurar el cerebro (🎤 › Inteligencia)',4000);decir('Me falta configurar el cerebro');return;}
   const id='c'+(++nPeticion);
   IA.pend[id]={texto,t0:Date.now()};
@@ -1561,7 +1603,7 @@ function preguntarClaude(texto){
   else{ // formato compatible con OpenAI: Gemini o servidor propio (Ollama, LM Studio...)
     url=IA.prov==='gemini'?'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions':IA.url.replace(/\/+$/,'')+(/\/chat\/completions$/.test(IA.url)?'':'/v1/chat/completions');
     enc=IA.key?{'Authorization':'Bearer '+IA.key}:{};
-    cuerpo={model:IA.prov==='gemini'?(IA.modeloLibre||'gemini-2.5-flash'):(IA.modeloLibre||'llama3.1'),max_tokens:400,temperature:.3,
+    cuerpo={model:IA.prov==='gemini'?IA.modeloLibre:(IA.modeloLibre||'llama3.1'),max_tokens:400,temperature:.3,
       messages:[{role:'system',content:sistemaIA()},...mensajes]};}
   const nombre=IA.prov==='claude'?'Claude '+IA.modelo:IA.prov==='gemini'?'Gemini '+cuerpo.model:'servidor '+cuerpo.model;
   logD('🧠 → '+nombre+': '+texto);
@@ -1573,6 +1615,7 @@ function preguntarClaude(texto){
 window.claudeRespuesta=(...a)=>iaRespuesta(...a);
 window.iaRespuesta=(id,codigo,texto)=>{
   const p=IA.pend[id];delete IA.pend[id];if(!p)return;
+  if(p.cb){p.cb(codigo,texto);return;}
   let j=null;try{j=JSON.parse(texto);}catch(_){}
   if(codigo!==200||!j||j.type==='error'||j.error){
     const m=(j&&j.error&&(j.error.message||(typeof j.error==='string'?j.error:'')))||(Array.isArray(j)&&j[0]&&j[0].error&&j[0].error.message)||texto||'';
@@ -1580,7 +1623,9 @@ window.iaRespuesta=(id,codigo,texto)=>{
     const msg=codigo===401||codigo===403?'La clave de '+quien+' no es válida':codigo===402||/credit|balance|quota/i.test(m)?'No hay saldo o cupo en '+quien:
       codigo===429?quien+' está recibiendo muchas peticiones, intenta en un momento':codigo===529||codigo>=500?quien+' está ocupado, intenta otra vez':
       codigo===0?(IA.prov==='propio'?'No pude conectarme al servidor':'No pude conectarme a internet'):codigo===404?'El modelo o la dirección no existe':'Error de '+quien;
-    logD('🧠 ✖ '+codigo+' '+m.slice(0,160));mostrarVoz(msg,4500);decir(msg);return;
+    logD('🧠 ✖ '+codigo+' '+m.slice(0,160));
+    if(IA.prov==='gemini'&&(codigo===404||/not found|is not supported/i.test(m))&&!p.reintento){IA.modeloLibre='';elegirModeloGemini(ok=>{if(ok){p.reintento=true;preguntarClaude(p.texto);}else{mostrarVoz(msg,4500);decir(msg);}});return;}
+    mostrarVoz(msg,4500);decir(msg);return;
   }
   const crudo=(j.content?(j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join(''):(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'').trim();
   let plan=null;try{const a=crudo.indexOf('{'),b=crudo.lastIndexOf('}');plan=JSON.parse(crudo.slice(a,b+1));}catch(_){}
@@ -1604,9 +1649,10 @@ function pintarIAUI(){
   $('#selProv').value=IA.prov;$('#txtUrl').value=IA.url;$('#txtModelo').value=IA.modeloLibre;
   $('#txtUrl').style.display=IA.prov==='propio'?'':'none';
   $('#selModelo').style.display=IA.prov==='claude'?'':'none';$('#txtModelo').style.display=IA.prov==='claude'?'none':'';
+  $('#txtModelo').placeholder=IA.prov==='gemini'?'Modelo (vacío = la app elige el gratis más nuevo)':'Modelo (ej: llama3.1 o qwen2.5)';
   $('#txtKey').placeholder=IA.prov==='claude'?'Clave de API de Claude (sk-ant-...)':IA.prov==='gemini'?'Clave de API de Gemini (AIza...)':'Clave (opcional)';
   $('#notaProv').textContent=IA.prov==='claude'?'La clave se crea en console.anthropic.com (la API se paga aparte de tu suscripción).':
-    IA.prov==='gemini'?'La clave se crea gratis en aistudio.google.com (tiene un nivel gratuito con límites).':
+    IA.prov==='gemini'?'Gratis: crea la clave en aistudio.google.com › Get API key, sin tarjeta. Deja el modelo vacío y la app elige el gratis más nuevo. Tiene un límite de peticiones por día, de sobra para esto.':
     'Un modelo abierto corriendo en tu computador, en la misma red wifi. En Ollama: OLLAMA_HOST=0.0.0.0 y usa la IP del computador.';
   $('#notaProv').textContent+=' Todo se guarda solo en este aparato, nunca en el código.';
   $('#bVozResp').textContent='Responder en voz alta: '+(IA.voz?'sí':'no');$('#bVozResp').classList.toggle('on',IA.voz);
@@ -1616,7 +1662,7 @@ $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)a
 $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
 $('#txtKey').onchange=e=>{IA.key=e.target.value.trim();guardarIA();};
 $('#selModelo').onchange=e=>{IA.modelo=e.target.value;guardarIA();};
-$('#selProv').onchange=e=>{IA.prov=e.target.value;IA.hist=[];guardarIA();pintarIAUI();};
+$('#selProv').onchange=e=>{IA.prov=e.target.value;IA.hist=[];if(IA.prov==='gemini')IA.modeloLibre='';guardarIA();pintarIAUI();};
 $('#txtUrl').onchange=e=>{IA.url=e.target.value.trim();guardarIA();};
 $('#txtModelo').onchange=e=>{IA.modeloLibre=e.target.value.trim();guardarIA();};
 $('#bProbarIA').onclick=()=>{IA.key=$('#txtKey').value.trim();IA.url=$('#txtUrl').value.trim();IA.modeloLibre=$('#txtModelo').value.trim();guardarIA();

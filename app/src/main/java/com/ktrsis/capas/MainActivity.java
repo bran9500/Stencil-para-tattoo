@@ -323,13 +323,14 @@ public class MainActivity extends Activity {
             int codigo = 0; String res;
             try {
                 HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-                c.setRequestMethod("POST");
-                c.setConnectTimeout(15000); c.setReadTimeout(45000); c.setDoOutput(true);
+                boolean get = cuerpo == null || cuerpo.isEmpty();
+                c.setRequestMethod(get ? "GET" : "POST");
+                c.setConnectTimeout(15000); c.setReadTimeout(45000); c.setDoOutput(!get);
                 c.setRequestProperty("content-type", "application/json");
                 JSONObject h = new JSONObject(encabezados == null || encabezados.isEmpty() ? "{}" : encabezados);
                 java.util.Iterator<String> it = h.keys();
                 while (it.hasNext()) { String k = it.next(); c.setRequestProperty(k, h.getString(k)); }
-                try (OutputStream o = c.getOutputStream()) { o.write(cuerpo.getBytes("UTF-8")); }
+                if (!get) try (OutputStream o = c.getOutputStream()) { o.write(cuerpo.getBytes("UTF-8")); }
                 codigo = c.getResponseCode();
                 InputStream in = codigo < 400 ? c.getInputStream() : c.getErrorStream();
                 ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] b = new byte[8192]; int n;
