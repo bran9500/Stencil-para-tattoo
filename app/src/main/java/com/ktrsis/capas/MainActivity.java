@@ -305,6 +305,7 @@ public class MainActivity extends Activity {
             });
             ttsListo = true;
             evento("tts", "lista");
+            js("window.ttsLista&&ttsLista()");
         });
     }
 
@@ -362,6 +363,36 @@ public class MainActivity extends Activity {
         public String vozDiag() { return diagnostico(); }
 
         /** Cambia el servicio de reconocimiento y el idioma, y reinicia la escucha. */
+        @JavascriptInterface
+        public String voces() {
+            try {
+                JSONArray a = new JSONArray();
+                if (ttsListo && tts.getVoices() != null) for (android.speech.tts.Voice v : tts.getVoices()) {
+                    if (!"es".equals(v.getLocale().getLanguage())) continue;
+                    JSONObject o = new JSONObject();
+                    o.put("nombre", v.getName()); o.put("pais", v.getLocale().getCountry());
+                    o.put("calidad", v.getQuality()); o.put("red", v.isNetworkConnectionRequired());
+                    o.put("instalada", v.getFeatures() == null || !v.getFeatures().contains("notInstalled"));
+                    a.put(o);
+                }
+                return a.toString();
+            } catch (Exception e) { return "[]"; }
+        }
+
+        /** Elige voz (acento), velocidad y tono de la voz de respuesta. */
+        @JavascriptInterface
+        public void configTts(String nombre, float velocidad, float tono) {
+            runOnUiThread(() -> {
+                if (!ttsListo) return;
+                try {
+                    if (nombre != null && !nombre.isEmpty() && tts.getVoices() != null)
+                        for (android.speech.tts.Voice v : tts.getVoices()) if (v.getName().equals(nombre)) { tts.setVoice(v); break; }
+                    tts.setSpeechRate(velocidad > 0 ? velocidad : 1f);
+                    tts.setPitch(tono > 0 ? tono : 1f);
+                } catch (Exception e) { evento("tts", e.toString()); }
+            });
+        }
+
         @JavascriptInterface
         public void hablar(String texto) {
             runOnUiThread(() -> {
