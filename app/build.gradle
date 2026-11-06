@@ -10,8 +10,8 @@ android {
         applicationId 'com.ktrsis.capas.stencil'
         minSdk 29
         targetSdk 35
-        versionCode 19
-        versionName '0.19-lab'
+        versionCode 20
+        versionName '0.20-lab'
     }
 
     signingConfigs {

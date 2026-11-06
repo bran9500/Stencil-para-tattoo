@@ -50,8 +50,10 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 #menuV input[type=text]{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit}
 #top button{padding:7px 11px;border-radius:10px;font-size:14px}
 #lienzo{flex:1;position:relative;overflow:hidden;touch-action:none;background:#fff}
-#grid{position:absolute;left:0;top:0;transform-origin:0 0;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);pointer-events:none}
-#grid div{border:1px dashed #1e6bffaa;display:flex;align-items:center;justify-content:center;color:#1e6bff;opacity:.45;font-weight:700}
+#grid{position:absolute;left:0;top:0;transform-origin:0 0;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);pointer-events:none;transition:opacity .6s}
+#grid.desv{opacity:0}
+#grid div{border:1px dashed #1e6bffcc;display:flex;align-items:center;justify-content:center;font-weight:800;background:#1e6bff0d}
+#grid div span{display:flex;align-items:center;justify-content:center;border-radius:50%;background:#1e6bffd9;color:#fff;box-shadow:0 0 0 .06em #fff}
 #lienzo canvas{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:auto}
 #aviso{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:#000c;color:#fff;
   padding:8px 14px;border-radius:20px;font-size:14px;pointer-events:none;white-space:nowrap}
@@ -356,7 +358,8 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <p><b>Zoom hacia un lado</b> · aumenta a la derecha · acércalo a la izquierda · aumenta arriba · más zoom abajo · aumenta en el área derecha de la misma área</p>
       <p><b>Mover</b> · derecha · a la izquierda · arriba · sube · abajo · baja · un poco a la derecha · muévete hacia abajo · corre a la izquierda</p>
       <p><b>Ver todo</b> · completa · imagen completa · toda la imagen · entera · centra · encuadra · quita el zoom · sin zoom</p>
-      <p><b>Cuadrícula</b> · cuadrícula · muestra las áreas · números · quita la cuadrícula · sin cuadrícula</p>
+      <p><b>Ver las áreas</b> · muéstrame las áreas · las zonas · cómo está dividida · cuadrícula <span>(se ven 5 segundos y desaparecen)</span></p>
+      <p><b>Áreas fijas</b> · deja las áreas · áreas fijas · déjame la cuadrícula · <b>quítalas</b>: quita las áreas · sin cuadrícula</p>
       <h4>Vistas</h4>
       <p><b>Real</b> · real · vista real · sombreado · tonos reales</p>
       <p><b>Gris plano</b> · gris · gris plano · plano</p>
@@ -718,8 +721,8 @@ function ajustarVista(){
 }
 function aplicarVista(){const tr=`translate(${V.x}px,${V.y}px) scale(${V.s})`;$('#cv').style.transform=tr;
   const g=$('#grid');if(g){g.style.width=S.W+'px';g.style.height=S.H+'px';g.style.transform=tr;
-    if(g.children.length!==9){g.innerHTML='';for(let i=1;i<=9;i++){const d=document.createElement('div');d.textContent=i;g.appendChild(d);}}
-    const fs=Math.max(S.W,S.H)/14;[...g.children].forEach(d=>{d.style.fontSize=fs+'px';d.style.borderWidth=Math.max(1,1.5/V.s)+'px';});}}
+    if(g.children.length!==9||!g.querySelector('span')){g.innerHTML='';for(let i=1;i<=9;i++){const d=document.createElement('div');const sp=document.createElement('span');sp.textContent=i;d.appendChild(sp);g.appendChild(d);}}
+    const r=$('#lienzo').getBoundingClientRect(),fs=Math.max(18,Math.min(r.width,r.height)/9)/V.s;[...g.children].forEach(d=>{d.style.fontSize=(fs*.55)+'px';d.style.borderWidth=Math.max(1,1.5/V.s)+'px';const sp=d.firstChild;if(sp){sp.style.width=sp.style.height=fs+'px';}});}}
 /* ---------- zoom por áreas (3x3) y movimiento, con animación ---------- */
 let animV=0;
 function animarVista(nx,ny,ns,ms=280){
@@ -741,7 +744,12 @@ function moverVista(dx,dy){const r=$('#lienzo').getBoundingClientRect(); // dx=1
   animarVista(V.x-dx*r.width*.33,V.y-dy*r.height*.33,V.s);}
 function vistaCompleta(){const L=$('#lienzo'),r=L.getBoundingClientRect(),pad=10,ns=Math.min((r.width-pad*2)/S.W,(r.height-pad*2)/S.H);
   animarVista((r.width-S.W*ns)/2,(r.height-S.H*ns)/2,ns);}
-function cuadricula(on){$('#grid').classList.toggle('hide',!on);aplicarVista();}
+let tGrid=0;
+function cuadricula(on,segundos=0){
+  const g=$('#grid');clearTimeout(tGrid);g.classList.remove('desv');
+  g.classList.toggle('hide',!on);aplicarVista();
+  if(on&&segundos)tGrid=setTimeout(()=>{g.classList.add('desv');tGrid=setTimeout(()=>{g.classList.add('hide');g.classList.remove('desv');},650);},segundos*1000);
+}
 (()=>{
   const L=$('#lienzo'),pts=new Map();let ini=null,movido=false,ultimoTap=0;
   let trazo=null,rafP=0;
@@ -1287,7 +1295,7 @@ const ACCIONES=[ // [id, nombre, capas: 0 no, 1 una, 2 varias, frase interna]
   ['area','Zoom a un área (1-9)',3,c=>'area '+c[0]],['acercar','Más zoom',0,()=>'aumenta'],['acercar_poco','Un poco más de zoom',0,()=>'aumenta un poco'],['alejar','Menos zoom',0,()=>'alejate'],['alejar_poco','Un poco menos de zoom',0,()=>'alejate un poco'],
   ['acer_der','Zoom hacia la derecha',0,()=>'aumenta derecha'],['acer_izq','Zoom hacia la izquierda',0,()=>'aumenta izquierda'],['acer_arr','Zoom hacia arriba',0,()=>'aumenta arriba'],['acer_abj','Zoom hacia abajo',0,()=>'aumenta abajo'],
   ['der','Mover a la derecha',0,()=>'derecha'],['izq','Mover a la izquierda',0,()=>'izquierda'],['arr','Mover arriba',0,()=>'arriba'],['abj','Mover abajo',0,()=>'abajo'],
-  ['centrar','Ver imagen completa',0,()=>'completa'],['grid_si','Mostrar cuadrícula',0,()=>'cuadricula'],['grid_no','Ocultar cuadrícula',0,()=>'no cuadricula'],
+  ['centrar','Ver imagen completa',0,()=>'completa'],['grid_si','Mostrar áreas unos segundos',0,()=>'cuadricula'],['grid_fijo','Mostrar áreas fijas',0,()=>'deja la cuadricula'],['grid_no','Ocultar áreas',0,()=>'no cuadricula'],
   ['tab_ver','Ir a Ver capas',0,()=>'ver capas'],['tab_est','Ir a Esténcil',0,()=>'ver estencil'],
   ['deshacer','Deshacer el último comando',0,()=>'deshacer'],['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
 const ACC=Object.fromEntries(ACCIONES.map(a=>[a[0],a]));
@@ -1454,6 +1462,9 @@ function paraDecir(r){
   if(/zoom/i.test(r)&&/Más|más/.test(r)){const lado=(r.match(/hacia (.*)$/)||[])[1];return elegir(V([`Ahí te acerco${lado?' hacia la '+lado:''}.`,'Más cerquita.','Listo, acerqué.'],[`Te acerqué un poco más${lado?' hacia la '+lado:''}.`,'Perfecto, ya ves más de cerca.'],['Acercando.']));}
   if(/zoom/i.test(r)&&/Menos|menos/.test(r))return elegir(V(['Ahí te alejo un poco.','Listo, más lejos.','Alejé.'],['Te alejé un poco para que veas más.','Perfecto, ya tienes una vista más amplia.'],['Alejando.']));
   if((m=r.match(/^Mover (.*)$/)))return elegir(V([`Ahí te muevo a la ${m[1]}.`,`Listo, hacia la ${m[1]}.`],[`Moví la vista hacia la ${m[1]}.`],[`Moviendo a la ${m[1]}.`]));
+  if(/^Áreas fijas/.test(r))return elegir(V(['Ahí te dejo las áreas fijas.','Listo, las áreas se quedan.'],['Dejé las áreas visibles hasta que me digas.'],['Áreas fijas.']));
+  if(/^Áreas$/.test(r))return elegir(V(['Mira, así está dividida.','Ahí están las nueve áreas.','Fíjate en los números.'],['Así está dividido el diseño; dime qué área quieres ver.','Ahí tienes las nueve áreas, ¿a cuál te acerco?'],['Mostrando las áreas.']));
+  if(/^Áreas ocultas/.test(r))return elegir(V(['Listo, quité las áreas.','Fuera la cuadrícula.'],['Oculté las áreas.'],['Áreas ocultas.']));
   if(/^Imagen completa/.test(r))return elegir(V(['Ahí está el diseño completo.','Listo, todo a la vista.'],['Perfecto, volví a la vista completa del diseño.'],['Vista completa.']));
   if((m=r.match(/^Vista: (.*)$/)))return elegir(V([`Listo, vista ${m[1].toLowerCase()}.`,`Te puse la vista ${m[1].toLowerCase()}.`],[`Cambié a la vista ${m[1].toLowerCase()}.`],[`Vista ${m[1].toLowerCase()}.`]));
   if(/^Deshecho/.test(r))return elegir(V(['Listo, lo devolví como estaba.','Ya, quedó como antes.','Perdón, ya lo regresé.'],['Disculpa, ya lo dejé como estaba.','Listo, deshice el último cambio.'],['Cambio deshecho.']));
@@ -1477,7 +1488,10 @@ function ejecutarVoz(t){
   {const m=t.match(/ (?:area|areas|zona|cuadro|cuadrante|recuadro|parte|sector|seccion|bloque|zoom(?: en| a| al| hacia)?(?: el| la)?)(?: area| zona| parte)? (?:numero )?(\d|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve) /);
    const N2={...NUM,siete:7,ocho:8,nueve:9};
    if(m){const n=/^\d$/.test(m[1])?+m[1]:N2[m[1]];if(n>=1&&n<=9){zoomArea(n);return 'Zoom área '+n;}}}
-  if(has('cuadricula','cuadriculas','cuadros','numeros','las areas','las zonas')){const on=!(has('no','sin')||pre('quit','ocult','apag','borr','escond'));cuadricula(on);return 'Cuadrícula: '+(on?'sí':'no');}
+  if(has('cuadricula','cuadriculas','cuadros','numeros','las areas','las zonas','areas','zonas','divisiones','division','dividida','como esta dividida','como se divide','cuadrantes')){
+    const on=!(has('no','sin')||pre('quit','ocult','apag','borr','escond'));
+    const fija=has('fija','fijas','dejala','dejalas','dejalo','quieta','quietas','siempre','deja las','deja la','deja los')&&!has('dejame ver','deja ver');
+    cuadricula(on,on&&!fija?5:0);return on?(fija?'Áreas fijas':'Áreas'):'Áreas ocultas';}
   // --- ver toda la imagen ---
   if(!num&&!has('capa','capas')&&has('completa','completo','entera','toda la imagen','imagen completa','imagen entera','vista completa','centra','centrar','centrala','centralo','encuadra','encuadrar','ajusta','ajustar','quita el zoom','quitale el zoom','sin zoom','reinicia','resetea','tamano normal','vuelve al inicio','todo el dibujo','todo el diseno')){vistaCompleta();return 'Imagen completa';}
   // --- zoom y mover ---
@@ -1612,7 +1626,7 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "acciones" es una lista en orden. Cada acción es exactamente uno de estos textos (cambia los números):
 "capa N" (muestra de la 1 hasta la N) · "solo capa A B" (solo esas) · "si capa A B" (prenderlas) · "no capa A B" (apagarlas) · "todas" · "ninguna" · "siguiente" · "anterior"
 "area N" (zoom a un área 1-9) · "aumenta" · "aumenta un poco" · "aumenta mucho" · "aumenta derecha" · "aumenta izquierda" · "aumenta arriba" · "aumenta abajo" · "alejate" · "alejate un poco" · "alejate mucho"
-"derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" · "no cuadricula"
+"derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" (muestra las 9 áreas unos segundos) · "deja la cuadricula" (áreas fijas) · "no cuadricula"
 "vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
 "fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" · "deshacer"
 Usa [] si solo es una pregunta o charla.
