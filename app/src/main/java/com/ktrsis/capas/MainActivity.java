@@ -13,6 +13,11 @@ import android.content.ComponentName;
 import android.content.pm.ResolveInfo;
 import android.provider.Settings;
 import java.util.List;
+import java.util.Locale;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -54,6 +59,8 @@ public class MainActivity extends Activity {
     private String servicioVoz = ""; // "" = predeterminado, "ondevice" = en el dispositivo, o paquete/clase
     private String idiomaVoz = "es-US";
     private long ultimoNivel = 0;
+    private TextToSpeech tts;
+    private boolean ttsListo, hablandoTts;
     private final Handler manejador = new Handler(Looper.getMainLooper());
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
@@ -111,6 +118,7 @@ public class MainActivity extends Activity {
             });
         }
         setContentView(raiz);
+        iniciarTts();
         recibir(getIntent());
     }
 
@@ -233,10 +241,10 @@ public class MainActivity extends Activity {
     }
 
     private void reiniciarVoz(long espera) {
-        if (!escuchando) return;
+        if (!escuchando || hablandoTts) return;
         manejador.removeCallbacksAndMessages(null);
         manejador.postDelayed(() -> {
-            if (!escuchando || reconocedor == null) return;
+            if (!escuchando || reconocedor == null || hablandoTts) return;
             try { reconocedor.cancel(); reconocedor.startListening(intentVoz); }
             catch (Exception e) { reiniciarVoz(800); }
         }, espera);
@@ -279,7 +287,61 @@ public class MainActivity extends Activity {
 
     @Override protected void onPause() { super.onPause(); if (escuchando) detenerVoz(); }
     @Override protected void onResume() { super.onResume(); if (paginaLista) js("window.alVolver&&alVolver()"); }
-    @Override protected void onDestroy() { super.onDestroy(); if (reconocedor != null) reconocedor.destroy(); }
+    @Override protected void onDestroy() { super.onDestroy(); if (reconocedor != null) reconocedor.destroy(); if (tts != null) tts.shutdown(); }
+
+    /* ---------------- voz de respuesta ---------------- */
+    private void iniciarTts() {
+        tts = new TextToSpeech(this, estado -> {
+            if (estado != TextToSpeech.SUCCESS) { evento("tts", "no disponible"); return; }
+            int r = tts.setLanguage(new Locale("es", "US"));
+            if (r < 0) r = tts.setLanguage(new Locale("es", "ES"));
+            if (r < 0) tts.setLanguage(new Locale("es"));
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String id) { runOnUiThread(() -> {
+                    hablandoTts = true; manejador.removeCallbacksAndMessages(null);
+                    if (reconocedor != null) { try { reconocedor.cancel(); } catch (Exception ignored) {} } }); }
+                @Override public void onDone(String id) { runOnUiThread(() -> { hablandoTts = false; if (escuchando) reiniciarVoz(250); }); }
+                @Override public void onError(String id) { runOnUiThread(() -> { hablandoTts = false; if (escuchando) reiniciarVoz(250); }); }
+            });
+            ttsListo = true;
+            evento("tts", "lista");
+        });
+    }
+
+    /* ---------------- llamada a la API de Claude ---------------- */
+    private void llamarClaude(String id, String clave, String cuerpo) {
+        try {
+            JSONObject h = new JSONObject();
+            h.put("x-api-key", clave); h.put("anthropic-version", "2023-06-01");
+            llamarHttp(id, "https://api.anthropic.com/v1/messages", h.toString(), cuerpo);
+        } catch (Exception e) { evento("error", e.toString()); }
+    }
+
+    /** POST JSON genérico (Claude, Gemini o un servidor propio). Responde a iaRespuesta(id, código, texto). */
+    private void llamarHttp(String id, String url, String encabezados, String cuerpo) {
+        new Thread(() -> {
+            int codigo = 0; String res;
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setRequestMethod("POST");
+                c.setConnectTimeout(15000); c.setReadTimeout(45000); c.setDoOutput(true);
+                c.setRequestProperty("content-type", "application/json");
+                JSONObject h = new JSONObject(encabezados == null || encabezados.isEmpty() ? "{}" : encabezados);
+                java.util.Iterator<String> it = h.keys();
+                while (it.hasNext()) { String k = it.next(); c.setRequestProperty(k, h.getString(k)); }
+                try (OutputStream o = c.getOutputStream()) { o.write(cuerpo.getBytes("UTF-8")); }
+                codigo = c.getResponseCode();
+                InputStream in = codigo < 400 ? c.getInputStream() : c.getErrorStream();
+                ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] b = new byte[8192]; int n;
+                if (in != null) while ((n = in.read(b)) > 0) out.write(b, 0, n);
+                res = out.toString("UTF-8");
+            } catch (Exception e) {
+                res = "{\"error\":{\"type\":\"red\",\"message\":" + JSONObject.quote(e.toString()) + "}}";
+            }
+            final int cod = codigo; final String r = res;
+            runOnUiThread(() -> js("window.iaRespuesta&&iaRespuesta(" + JSONObject.quote(id) + "," + cod + "," + JSONObject.quote(r) + ")"));
+        }).start();
+    }
 
     @SuppressWarnings("deprecation")
     @Override
@@ -299,6 +361,21 @@ public class MainActivity extends Activity {
         public String vozDiag() { return diagnostico(); }
 
         /** Cambia el servicio de reconocimiento y el idioma, y reinicia la escucha. */
+        @JavascriptInterface
+        public void hablar(String texto) {
+            runOnUiThread(() -> {
+                if (!ttsListo || texto == null || texto.isEmpty()) return;
+                tts.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "u" + System.nanoTime());
+            });
+        }
+
+        /** Envía un mensaje a la API de Claude; la respuesta llega a claudeRespuesta(id, código, texto). */
+        @JavascriptInterface
+        public void claude(String id, String clave, String cuerpo) { llamarClaude(id, clave, cuerpo); }
+
+        @JavascriptInterface
+        public void http(String id, String url, String encabezados, String cuerpo) { llamarHttp(id, url, encabezados, cuerpo); }
+
         @JavascriptInterface
         public void vozConfig(String servicio, String idioma) {
             runOnUiThread(() -> {

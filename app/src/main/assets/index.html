@@ -46,6 +46,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 .cmdf .x{padding:7px 11px}
 #menuV .cmd{font-size:13px;color:var(--mut);line-height:1.55;max-height:30vh;overflow-y:auto;background:var(--bg);border-radius:10px;padding:10px}
 #menuV .cmd b{color:var(--tx);font-weight:600}
+#menuV input[type=password]{background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit}
 #menuV input[type=text]{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit}
 #top button{padding:7px 11px;border-radius:10px;font-size:14px}
 #lienzo{flex:1;position:relative;overflow:hidden;touch-action:none;background:#fff}
@@ -365,6 +366,8 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <p><b>Deshacer</b> · vuelve a la configuración anterior · deshaz · cancela · eso no · me equivoqué · como estaba · no era eso <span>(repítelo para seguir retrocediendo)</span></p>
       <p><b>Ayuda</b> · ayuda · comandos · qué puedo decir · lista de comandos</p>
       <p><b>Apagar micrófono</b> · deja de escuchar · apágate · silencio · descansa · chao</p>
+      <h4>Con inteligencia activada (Claude, Gemini o servidor propio)</h4>
+      <p>Habla normal: <b>quítame las sombras claras y acércame al ojo</b> · <b>¿en qué capa voy?</b> · <b>déjame solo lo oscuro de la boca</b> · <b>¿qué dilución uso para la capa 2?</b> · <b>no, eso no era</b></p>
       <p><span>Si algo no te lo entiende, créalo en "Mis comandos" con tu propia frase.</span></p>
     </div>
     <button id="bCerrarL" class="big pri">Cerrar</button>
@@ -392,6 +395,20 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <input type="text" id="txtProbar" placeholder="Escribe una frase para probarla" autocomplete="off">
       <button id="bProbar">Probar</button>
     </div>
+    <div class="ht" style="margin-top:4px">Inteligencia</div>
+    <div class="nota" style="margin:0">Con inteligencia puedes hablarle normal y hacerle preguntas: entiende frases largas, hace varias cosas a la vez y te responde. Los comandos simples siguen funcionando sin internet.</div>
+    <button id="bIA">Usar inteligencia: no</button>
+    <select id="selProv" class="dsel"><option value="claude">Cerebro: Claude</option><option value="gemini">Cerebro: Gemini</option><option value="propio">Cerebro: servidor propio (Ollama, LM Studio…)</option></select>
+    <input type="text" id="txtUrl" placeholder="Dirección del servidor, ej: http://192.168.1.20:11434" autocomplete="off">
+    <input type="password" id="txtKey" placeholder="Clave de API" autocomplete="off">
+    <select id="selModelo" class="dsel"><option value="claude-haiku-5-5">Haiku · rápido y barato (recomendado)</option><option value="claude-sonnet-5-5">Sonnet · más inteligente, un poco más lento</option></select>
+    <input type="text" id="txtModelo" placeholder="Modelo (ej: gemini-2.5-flash o llama3.1)" autocomplete="off">
+    <button id="bVozResp" class="on">Responder en voz alta: sí</button>
+    <div class="fila" style="margin:0">
+      <button id="bProbarIA" style="flex:1">Probar conexión</button>
+      <button id="bPreguntarIA" style="flex:1">Preguntarle lo de arriba</button>
+    </div>
+    <div class="nota" style="margin:0" id="notaProv"></div>
     <button id="bListaCmd">📖 Ver lista de comandos</button>
     <button id="bDiag">🔧 Diagnóstico de voz</button>
     <button class="big pri" id="bVozOnOff">Activar micrófono</button>
@@ -1305,7 +1322,7 @@ function pintarVozUI(){
   $('#bAuto').textContent='Manos libres al abrir la app: '+(VOZ.auto?'sí':'no');$('#bAuto').classList.toggle('on',VOZ.auto);
   if(!VOZ.on)$('#vozTxt').classList.add('hide');
 }
-$('#bMic').onclick=()=>{pintarVozUI();dibujarMis();$('#menuV').classList.remove('hide');};
+$('#bMic').onclick=()=>{pintarVozUI();dibujarMis();pintarIAUI();$('#menuV').classList.remove('hide');};
 $('#bAuto').onclick=()=>{VOZ.auto=!VOZ.auto;if(VOZ.auto&&!VOZ.pedir){VOZ.pedir=true;aviso('Con manos libres la palabra clave queda activada',3000);}guardarVoz();pintarVozUI();if(VOZ.auto&&!VOZ.on)prenderVoz(true);};
 $('#bCerrarV').onclick=()=>$('#menuV').classList.add('hide');
 function abrirListaCmd(){$('#menuV').classList.add('hide');$('#menuL').classList.remove('hide');}
@@ -1347,18 +1364,29 @@ function claves(){ // la palabra clave y cómo suele transcribirse "stencil"
 window.comandoVoz=alts=>{
   const ahora=Date.now();
   logD('🔎 claves buscadas: '+claves().slice(0,4).join(', ')+(claves().length>4?'…':''));
+  let elegido=null; // primera alternativa con palabra clave (para Claude)
   for(const alt of alts){
-    let t=norm(alt), tiene=false;
-    for(const c of claves()){const i=t.indexOf(' '+c+' ');if(i>=0){t=' '+t.slice(i+c.length+1);tiene=true;break;}}
+    let t=norm(alt), tieneC=false, resto=alt;
+    for(const c of claves()){const i=t.indexOf(' '+c+' ');if(i>=0){t=' '+t.slice(i+c.length+1);tieneC=true;break;}}
     const armado=ahora<VOZ.armadoHasta;
-    if(VOZ.pedir&&!tiene&&!armado){logD('   · "'+alt+'" → sin palabra clave, ignorado');continue;}
-    if(tiene&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);return;}
+    if(VOZ.pedir&&!tieneC&&!armado){logD('   · "'+alt+'" → sin palabra clave, ignorado');continue;}
+    if(tieneC&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);decir('Dime');return;}
+    if(!elegido)elegido={alt,t};
+    // frases largas o preguntas van directo a Claude (si está activo)
+    if(iaLista()&&esParaClaude(t)){VOZ.armadoHasta=0;logD('   · "'+alt+'" → 🧠 a Claude');preguntarClaude(alt);return;}
     const r=ejecutarFrase(t);
     logD('   · "'+alt+'" → '+(r?'✔ '+r:'no es un comando'));
-    if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);return;}
+    if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);decir(paraDecir(r));return;}
   }
-  if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta))mostrarVoz('No entendí: "'+alts[0]+'"',2500);
+  if(elegido&&iaLista()){VOZ.armadoHasta=0;logD('   · "'+elegido.alt+'" → 🧠 a Claude (no era comando)');preguntarClaude(elegido.alt);return;}
+  if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta||elegido)){mostrarVoz('No entendí: "'+alts[0]+'"',2500);if(elegido)decir('No te entendí');}
 };
+function esParaClaude(t){
+  const n=t.trim().split(' ').filter(Boolean).length;
+  const pregunta=/ (que|como|cual|cuales|por que|porque|cuanto|cuanta|cuantas|cuantos|donde|cuando|puedes|podrias|recomiendas|ayudame|explicame|dime|sabes|crees|opinas) /.test(t)&&!tiene(t,'que puedo decir','que comandos','que le digo');
+  return n>6||pregunta;
+}
+function paraDecir(r){return r.replace(/.*→ /,'').replace(/·/g,',').replace(/Zoom área/,'Zoom al área');}
 function numeros(t){const out=[];for(const w of t.trim().split(' ')){if(/^\d+$/.test(w))out.push(+w);else if(NUM[w])out.push(NUM[w]);else if(w==='ultima'||w==='ultimo')out.push(S.N);}
   return out.filter(n=>n>=1&&n<=S.N);}
 const tiene=(t,...ws)=>ws.some(w=>t.includes(' '+w+' '));
@@ -1479,6 +1507,122 @@ $('#bDiagCopiar').onclick=()=>{
 };
 // aplicar servicio/idioma guardados al iniciar
 setTimeout(aplicarConfigVoz,300);
+
+
+/* ---------- Viernes con Claude ---------- */
+const IA={on:false,prov:'claude',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
+try{const g=JSON.parse(localStorage.getItem('ia')||'{}');Object.assign(IA,{on:!!g.on,prov:g.prov||'claude',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
+const guardarIA=()=>{try{localStorage.setItem('ia',JSON.stringify({on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
+const iaLista=()=>IA.on&&(IA.prov==='propio'?IA.url.length>8:IA.key.length>15);
+function decir(t){ if(IA.voz&&t&&window.Android&&Android.hablar)Android.hablar(t); }
+function estadoTexto(){
+  const nom=nombresCapas(S.N),vis=S.vis.map((v,k)=>v?k+1:0).filter(Boolean);
+  const r=$('#lienzo').getBoundingClientRect(),ix=(r.width/2-V.x)/V.s,iy=(r.height/2-V.y)/V.s;
+  const area=(ix<0||iy<0||ix>S.W||iy>S.H)?'fuera':Math.floor(iy/(S.H/3))*3+Math.floor(ix/(S.W/3))+1;
+  const base=Math.min((r.width-20)/S.W,(r.height-20)/S.H);
+  return `diseño "${S.nombre}", ${S.N} capas (${nom.map((n,k)=>(k+1)+'='+n).join(', ')}). `+
+    `Pestaña: ${S.tab==='est'?'esténcil':'ver capas'}. Capas visibles: ${vis.length?vis.join(', '):'ninguna'}. Capa actual: ${S.actual+1}. `+
+    `Vista: ${({real:'real',plano:'gris plano',guia:'guía',orig:'original',est:'esténcil por líneas'})[S.vista]||S.vista}. `+
+    `Fantasma: ${S.fantasma?'sí':'no'}. Contorno: ${S.contorno?'sí':'no'}. Zoom: ${(V.s/base).toFixed(1)}x, centro de pantalla en área ${area}. `+
+    `Cuadrícula: ${$('#grid').classList.contains('hide')?'no':'sí'}.`+(S.tab==='est'&&S.estIncl?` Sombras del esténcil activas: ${S.estIncl.map((v,k)=>v?k+1:0).filter(Boolean).join(', ')||'ninguna'}.`:'');
+}
+function sistemaIA(){return `Eres "${cap1(VOZ.clave)}", la asistente de voz de Stencil Lab, la app que Bran (tatuador, marca ktrsis.ink) usa en su tablet mientras tatúa con guantes, sin tocar la pantalla. Te habla por voz y tú le respondes en voz alta.
+
+La app divide el diseño en capas de tono: capa 1 = la más clara, la última = la más oscura. Tiene vistas (real, gris plano, guía, original, esténcil por líneas), fantasma (muestra tenue lo que falta), contorno, y zoom por 9 áreas: 1-2-3 arriba, 4-5-6 en el medio, 7-8-9 abajo (izquierda a derecha).
+
+Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"respuesta":"..."}
+
+"acciones" es una lista en orden. Cada acción es exactamente uno de estos textos (cambia los números):
+"capa N" (muestra de la 1 hasta la N) · "solo capa A B" (solo esas) · "si capa A B" (prenderlas) · "no capa A B" (apagarlas) · "todas" · "ninguna" · "siguiente" · "anterior"
+"area N" (zoom a un área 1-9) · "aumenta" · "aumenta un poco" · "aumenta mucho" · "aumenta derecha" · "aumenta izquierda" · "aumenta arriba" · "aumenta abajo" · "alejate" · "alejate un poco" · "alejate mucho"
+"derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" · "no cuadricula"
+"vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
+"fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" · "deshacer"
+Usa [] si solo es una pregunta o charla.
+
+"respuesta": máximo 2 frases cortas, en español colombiano cercano, para leer en voz alta. Sin emojis, sin markdown, sin listas. Confirma lo que hiciste o responde lo que pregunta.
+
+Reglas:
+- Interpreta lo que quiere aunque lo diga raro o la transcripción tenga errores. "sombras claras" = las primeras capas, "oscuras" = las últimas, "medias" = las del medio.
+- Si nombra una parte del dibujo (ojo, boca, cuerno, pelo), elige el área 1-9 más probable según dónde suele estar en un retrato o diseño vertical y dile cuál usaste, para que te corrija si no es.
+- Si dice que te equivocaste o que no era eso, usa "deshacer".
+- Si te pregunta de tatuaje (agujas, diluciones, voltaje, técnica, cuidados), responde breve y útil, como colega con experiencia.
+- Si no entiendes, acciones [] y haz una pregunta corta.`;}
+let nPeticion=0;
+function preguntarClaude(texto){
+  if(!(IA.prov==='propio'?IA.url:IA.key)){mostrarVoz('Falta configurar el cerebro (🎤 › Inteligencia)',4000);decir('Me falta configurar el cerebro');return;}
+  const id='c'+(++nPeticion);
+  IA.pend[id]={texto,t0:Date.now()};
+  mostrarVoz('🧠 Pensando…');
+  const mensajes=[...IA.hist.slice(-8),{role:'user',content:`[Estado actual de la app: ${estadoTexto()}]\nBran dijo: "${texto}"`}];
+  let url,enc,cuerpo;
+  if(IA.prov==='claude'){url='https://api.anthropic.com/v1/messages';enc={'x-api-key':IA.key,'anthropic-version':'2023-06-01'};
+    cuerpo={model:IA.modelo,max_tokens:400,system:sistemaIA(),messages:mensajes};}
+  else{ // formato compatible con OpenAI: Gemini o servidor propio (Ollama, LM Studio...)
+    url=IA.prov==='gemini'?'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions':IA.url.replace(/\/+$/,'')+(/\/chat\/completions$/.test(IA.url)?'':'/v1/chat/completions');
+    enc=IA.key?{'Authorization':'Bearer '+IA.key}:{};
+    cuerpo={model:IA.prov==='gemini'?(IA.modeloLibre||'gemini-2.5-flash'):(IA.modeloLibre||'llama3.1'),max_tokens:400,temperature:.3,
+      messages:[{role:'system',content:sistemaIA()},...mensajes]};}
+  const nombre=IA.prov==='claude'?'Claude '+IA.modelo:IA.prov==='gemini'?'Gemini '+cuerpo.model:'servidor '+cuerpo.model;
+  logD('🧠 → '+nombre+': '+texto);
+  if(window.Android&&Android.http)Android.http(id,url,JSON.stringify(enc),JSON.stringify(cuerpo));
+  else{if(IA.prov==='claude')enc['anthropic-dangerous-direct-browser-access']='true';
+    fetch(url,{method:'POST',headers:{'content-type':'application/json',...enc},body:JSON.stringify(cuerpo)})
+    .then(async r=>iaRespuesta(id,r.status,await r.text())).catch(e=>iaRespuesta(id,0,JSON.stringify({error:{type:'red',message:String(e)}})));}
+}
+window.claudeRespuesta=(...a)=>iaRespuesta(...a);
+window.iaRespuesta=(id,codigo,texto)=>{
+  const p=IA.pend[id];delete IA.pend[id];if(!p)return;
+  let j=null;try{j=JSON.parse(texto);}catch(_){}
+  if(codigo!==200||!j||j.type==='error'||j.error){
+    const m=(j&&j.error&&(j.error.message||(typeof j.error==='string'?j.error:'')))||(Array.isArray(j)&&j[0]&&j[0].error&&j[0].error.message)||texto||'';
+    const quien=IA.prov==='claude'?'Claude':IA.prov==='gemini'?'Gemini':'el servidor';
+    const msg=codigo===401||codigo===403?'La clave de '+quien+' no es válida':codigo===402||/credit|balance|quota/i.test(m)?'No hay saldo o cupo en '+quien:
+      codigo===429?quien+' está recibiendo muchas peticiones, intenta en un momento':codigo===529||codigo>=500?quien+' está ocupado, intenta otra vez':
+      codigo===0?(IA.prov==='propio'?'No pude conectarme al servidor':'No pude conectarme a internet'):codigo===404?'El modelo o la dirección no existe':'Error de '+quien;
+    logD('🧠 ✖ '+codigo+' '+m.slice(0,160));mostrarVoz(msg,4500);decir(msg);return;
+  }
+  const crudo=(j.content?(j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join(''):(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'').trim();
+  let plan=null;try{const a=crudo.indexOf('{'),b=crudo.lastIndexOf('}');plan=JSON.parse(crudo.slice(a,b+1));}catch(_){}
+  if(!plan)plan={acciones:[],respuesta:crudo.replace(/[*#_`]/g,'').slice(0,300)};
+  const acciones=Array.isArray(plan.acciones)?plan.acciones.filter(a=>typeof a==='string'):[];
+  // ejecutar: un solo paso de deshacer para todo lo que haga Claude
+  const antes=S.capa?fotoEstado():null;let hizo=0;
+  for(const a of acciones){
+    if(norm(a).trim()==='deshacer'){if(HIST.length){volverEstado(HIST.pop());hizo=-1;}continue;}
+    const r=ejecutarVoz(norm(a));logD('   🧠 acción "'+a+'" → '+(r||'no reconocida'));if(r&&hizo>=0)hizo++;
+  }
+  if(hizo>0&&antes){HIST.push(antes);if(HIST.length>20)HIST.shift();}
+  IA.hist.push({role:'user',content:`Bran dijo: "${p.texto}"`},{role:'assistant',content:JSON.stringify({acciones,respuesta:plan.respuesta||''})});
+  if(IA.hist.length>16)IA.hist.splice(0,IA.hist.length-16);
+  const resp=(plan.respuesta||'Listo').trim();
+  logD('🧠 ← ('+((Date.now()-p.t0)/1000).toFixed(1)+' s) '+resp);
+  mostrarVoz('💬 '+resp,Math.min(9000,2500+resp.length*60));decir(resp);
+};
+function pintarIAUI(){
+  $('#bIA').textContent='Usar inteligencia: '+(IA.on?'sí':'no');$('#bIA').classList.toggle('on',IA.on);
+  $('#selProv').value=IA.prov;$('#txtUrl').value=IA.url;$('#txtModelo').value=IA.modeloLibre;
+  $('#txtUrl').style.display=IA.prov==='propio'?'':'none';
+  $('#selModelo').style.display=IA.prov==='claude'?'':'none';$('#txtModelo').style.display=IA.prov==='claude'?'none':'';
+  $('#txtKey').placeholder=IA.prov==='claude'?'Clave de API de Claude (sk-ant-...)':IA.prov==='gemini'?'Clave de API de Gemini (AIza...)':'Clave (opcional)';
+  $('#notaProv').textContent=IA.prov==='claude'?'La clave se crea en console.anthropic.com (la API se paga aparte de tu suscripción).':
+    IA.prov==='gemini'?'La clave se crea gratis en aistudio.google.com (tiene un nivel gratuito con límites).':
+    'Un modelo abierto corriendo en tu computador, en la misma red wifi. En Ollama: OLLAMA_HOST=0.0.0.0 y usa la IP del computador.';
+  $('#notaProv').textContent+=' Todo se guarda solo en este aparato, nunca en el código.';
+  $('#bVozResp').textContent='Responder en voz alta: '+(IA.voz?'sí':'no');$('#bVozResp').classList.toggle('on',IA.voz);
+  $('#txtKey').value=IA.key;$('#selModelo').value=IA.modelo;
+}
+$('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)aviso('Pega tu clave de API de Claude',3000);};
+$('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
+$('#txtKey').onchange=e=>{IA.key=e.target.value.trim();guardarIA();};
+$('#selModelo').onchange=e=>{IA.modelo=e.target.value;guardarIA();};
+$('#selProv').onchange=e=>{IA.prov=e.target.value;IA.hist=[];guardarIA();pintarIAUI();};
+$('#txtUrl').onchange=e=>{IA.url=e.target.value.trim();guardarIA();};
+$('#txtModelo').onchange=e=>{IA.modeloLibre=e.target.value.trim();guardarIA();};
+$('#bProbarIA').onclick=()=>{IA.key=$('#txtKey').value.trim();IA.url=$('#txtUrl').value.trim();IA.modeloLibre=$('#txtModelo').value.trim();guardarIA();
+  if(IA.prov==='propio'?!IA.url:!IA.key){aviso(IA.prov==='propio'?'Primero pon la dirección del servidor':'Primero pega la clave',2500);return;}
+  $('#menuV').classList.add('hide');preguntarClaude('Hola, preséntate en una frase y dime que ya estás conectada.');};
+$('#bPreguntarIA').onclick=()=>{const t=$('#txtProbar').value.trim();if(!t)return;$('#menuV').classList.add('hide');preguntarClaude(t);};
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
