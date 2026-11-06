@@ -141,6 +141,25 @@ public class MainActivity extends Activity {
     }
 
     class Puente {
+        /** Copia texto al portapapeles. */
+        @JavascriptInterface
+        public void copiar(String texto) {
+            runOnUiThread(() -> {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("prompt", texto));
+                Toast.makeText(MainActivity.this, "Prompt copiado", Toast.LENGTH_SHORT).show();
+            });
+        }
+
+        /** Abre un enlace afuera (por ejemplo Gemini). */
+        @JavascriptInterface
+        public void abrir(String url) {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+                catch (Exception e) { Toast.makeText(MainActivity.this, "No se pudo abrir", Toast.LENGTH_SHORT).show(); }
+            });
+        }
+
         /** Guarda un PNG (en base64) en Galería › Pictures/Capas. */
         @JavascriptInterface
         public boolean guardarImagen(String base64, String nombre) {
