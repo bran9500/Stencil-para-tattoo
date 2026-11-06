@@ -414,6 +414,15 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <option value="profesional">Estilo: profesional y clara</option>
       <option value="breve">Estilo: muy breve</option>
     </select>
+    <select id="selMotor" class="dsel"><option value="tablet">Motor de voz: la de la tablet (gratis, sin internet)</option><option value="eleven">Motor de voz: ElevenLabs (realista)</option></select>
+    <div id="cajaEleven" style="display:none;flex-direction:column;gap:8px">
+      <input type="password" id="txtKey11" placeholder="Clave de ElevenLabs (sk_...)" autocomplete="off">
+      <div class="fila" style="margin:0"><select id="selVoz11" class="dsel"><option value="">(toca Cargar voces)</option></select><button id="bCargar11">Cargar voces</button></div>
+      <select id="selModelo11" class="dsel"><option value="eleven_flash_v2_5">Rápida (gasta la mitad de créditos)</option><option value="eleven_multilingual_v2">Máxima calidad</option></select>
+      <div class="fila" style="margin:0"><label style="min-width:70px">Estabilidad</label><input type="range" id="rEstab" min="0" max="10" value="5"><span class="v" id="vEstab">0.5</span></div>
+      <div class="fila" style="margin:0"><label style="min-width:70px">Expresión</label><input type="range" id="rExpr" min="0" max="10" value="2"><span class="v" id="vExpr">0.2</span></div>
+      <div class="nota" style="margin:0">Clave gratis en elevenlabs.io › perfil › API Keys (plan gratis: unos 10.000 créditos al mes). Las frases que se repiten se guardan y no gastan créditos otra vez. Si falla, usa la voz de la tablet.</div>
+    </div>
     <select id="selVozTts" class="dsel"><option value="">Voz: la predeterminada</option></select>
     <div class="fila" style="margin:0"><label style="min-width:70px">Velocidad</label><input type="range" id="rVel" min="6" max="16" value="10"><span class="v" id="vVel">1.0</span></div>
     <div class="fila" style="margin:0"><label style="min-width:70px">Tono</label><input type="range" id="rTono" min="6" max="16" value="10"><span class="v" id="vTono">1.0</span></div>
@@ -1542,12 +1551,14 @@ setTimeout(aplicarConfigVoz,300);
 
 
 /* ---------- Viernes con Claude ---------- */
-const IA={estilo:'cercana',vozTts:'',vel:1,tono:1,on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
+const IA={motor:'tablet',key11:'',voz11:'',voz11Nombre:'',modelo11:'eleven_flash_v2_5',estab:.5,expr:.2,estilo:'cercana',vozTts:'',vel:1,tono:1,on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
 try{const g=JSON.parse(localStorage.getItem('ia')||'{}');IA.claves=g.claves||{};if(g.key&&!IA.claves[g.prov||'gemini'])IA.claves[g.prov||'gemini']=g.key;
-  Object.assign(IA,{estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
-const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
+  Object.assign(IA,{motor:g.motor||'tablet',key11:g.key11||'',voz11:g.voz11||'',voz11Nombre:g.voz11Nombre||'',modelo11:g.modelo11||'eleven_flash_v2_5',estab:g.estab??.5,expr:g.expr??.2,estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
+const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
 const iaLista=()=>IA.on&&(IA.prov==='propio'?IA.url.length>8:IA.key.length>15);
-function decir(t){ if(IA.voz&&t&&window.Android&&Android.hablar)Android.hablar(t); }
+function decir(t){ if(!IA.voz||!t||!window.Android)return;
+  if(IA.motor==='eleven'&&IA.key11&&IA.voz11&&Android.hablar11){Android.hablar11(IA.key11,IA.voz11,IA.modelo11,t,IA.estab,IA.expr);return;}
+  if(Android.hablar)Android.hablar(t); }
 function estadoTexto(){
   const nom=nombresCapas(S.N),vis=S.vis.map((v,k)=>v?k+1:0).filter(Boolean);
   const r=$('#lienzo').getBoundingClientRect(),ix=(r.width/2-V.x)/V.s,iy=(r.height/2-V.y)/V.s;
@@ -1698,7 +1709,7 @@ function pintarIAUI(){
   $('#notaProv').textContent+=' Todo se guarda solo en este aparato, nunca en el código.';
   $('#bVozResp').textContent='Responder en voz alta: '+(IA.voz?'sí':'no');$('#bVozResp').classList.toggle('on',IA.voz);
   $('#txtKey').value=IA.key;$('#selModelo').value=IA.modelo;
-  $('#selEstilo').value=IA.estilo;llenarVoces();$('#rVel').value=Math.round(IA.vel*10);$('#vVel').textContent=(+IA.vel).toFixed(1);$('#rTono').value=Math.round(IA.tono*10);$('#vTono').textContent=(+IA.tono).toFixed(1);
+  $('#selEstilo').value=IA.estilo;llenarVoces();pintarEleven();$('#rVel').value=Math.round(IA.vel*10);$('#vVel').textContent=(+IA.vel).toFixed(1);$('#rTono').value=Math.round(IA.tono*10);$('#vTono').textContent=(+IA.tono).toFixed(1);
 }
 $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)aviso('Pega tu clave de API de Claude',3000);};
 $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
@@ -1735,7 +1746,51 @@ $('#selEstilo').onchange=e=>{IA.estilo=e.target.value;IA.hist=[];guardarIA();dec
 $('#selVozTts').onchange=e=>{IA.vozTts=e.target.value;guardarIA();aplicarTts();setTimeout(()=>decir(FRASES_PRUEBA[IA.estilo]||'Hola Bran'),250);};
 $('#rVel').oninput=e=>{IA.vel=+e.target.value/10;$('#vVel').textContent=IA.vel.toFixed(1);guardarIA();aplicarTts();};
 $('#rTono').oninput=e=>{IA.tono=+e.target.value/10;$('#vTono').textContent=IA.tono.toFixed(1);guardarIA();aplicarTts();};
-$('#bOirVoz').onclick=()=>{const v=IA.voz;IA.voz=true;aplicarTts();decir(FRASES_PRUEBA[IA.estilo]||'Hola Bran');IA.voz=v;};
+$('#bOirVoz').onclick=()=>{const v=IA.voz;IA.voz=true;if(IA.motor!=='eleven')aplicarTts();decir(FRASES_PRUEBA[IA.estilo]||'Hola Bran');IA.voz=v;};
+
+
+/* ---------- ElevenLabs ---------- */
+window.voz11Fallo=(err,texto)=>{
+  const c=parseInt(err)||0;
+  const msg=c===401?'La clave de ElevenLabs no es válida':/quota|credits|limit/i.test(err)?'Se acabaron los créditos de ElevenLabs este mes':/voice/i.test(err)&&c===404?'Esa voz ya no está disponible':'ElevenLabs no respondió';
+  logD('🔊 ✖ '+err.slice(0,160));mostrarVoz(msg+' · uso la voz de la tablet',4000);
+  if(window.Android&&Android.hablar)Android.hablar(texto);
+};
+function pintarEleven(){
+  $('#selMotor').value=IA.motor;$('#cajaEleven').style.display=IA.motor==='eleven'?'flex':'none';
+  $('#selVozTts').style.display=IA.motor==='eleven'?'none':'';
+  $('#txtKey11').value=IA.key11;$('#selModelo11').value=IA.modelo11;
+  $('#rEstab').value=Math.round(IA.estab*10);$('#vEstab').textContent=(+IA.estab).toFixed(1);
+  $('#rExpr').value=Math.round(IA.expr*10);$('#vExpr').textContent=(+IA.expr).toFixed(1);
+  if(IA.voz11&&!$('#selVoz11 option[value="'+IA.voz11+'"]'))$('#selVoz11').innerHTML=`<option value="${IA.voz11}">${IA.voz11Nombre||'Voz elegida'}</option>`;
+  $('#selVoz11').value=IA.voz11;
+}
+$('#selMotor').onchange=e=>{IA.motor=e.target.value;guardarIA();pintarEleven();if(IA.motor==='eleven'&&IA.key11&&!IA.voz11)cargarVoces11();};
+$('#txtKey11').oninput=e=>{IA.key11=e.target.value.replace(/[\s"']/g,'');guardarIA();};
+$('#selModelo11').onchange=e=>{IA.modelo11=e.target.value;guardarIA();};
+$('#rEstab').oninput=e=>{IA.estab=+e.target.value/10;$('#vEstab').textContent=IA.estab.toFixed(1);guardarIA();};
+$('#rExpr').oninput=e=>{IA.expr=+e.target.value/10;$('#vExpr').textContent=IA.expr.toFixed(1);guardarIA();};
+$('#selVoz11').onchange=e=>{IA.voz11=e.target.value;IA.voz11Nombre=e.target.selectedOptions[0].textContent;guardarIA();
+  const v=IA.voz;IA.voz=true;decir(FRASES_PRUEBA[IA.estilo]||'Hola Bran, estoy lista.');IA.voz=v;};
+$('#bCargar11').onclick=()=>cargarVoces11();
+function cargarVoces11(){
+  if(!IA.key11){aviso('Primero pega la clave de ElevenLabs',2500);return;}
+  $('#bCargar11').textContent='Cargando…';
+  httpIA('https://api.elevenlabs.io/v1/voices',{'xi-api-key':IA.key11},null,(cod,txt)=>{
+    $('#bCargar11').textContent='Cargar voces';
+    let vs=[];try{vs=JSON.parse(txt).voices||[];}catch(_){}
+    if(cod!==200||!vs.length){aviso(cod===401?'La clave de ElevenLabs no es válida':'No pude cargar las voces ('+cod+')',4000);logD('🔊 ✖ voces '+cod+' '+String(txt).slice(0,120));return;}
+    const L=v=>v.labels||{};
+    const gen=v=>({male:'Hombre',female:'Mujer'})[(L(v).gender||'').toLowerCase()]||'Voz';
+    const desc=v=>[L(v).accent,L(v).description||L(v).descriptive,L(v).age].filter(Boolean).join(', ');
+    // primero las graves de hombre y las elegantes de mujer
+    const pts=v=>{const d=(desc(v)+' '+(v.description||'')).toLowerCase();return (/deep|grave|calm|authoritative|mature|warm|confident|sophisticated|elegant|british|professional|classy|smooth/.test(d)?2:0)+(/narrat|news|informative|assistant/.test(d)?1:0);};
+    vs.sort((a,b)=>pts(b)-pts(a)||(gen(a)>gen(b)?1:-1));
+    $('#selVoz11').innerHTML='<option value="">Elige una voz…</option>'+vs.map(v=>`<option value="${v.voice_id}">${gen(v)} · ${v.name}${desc(v)?' — '+desc(v):''}</option>`).join('');
+    $('#selVoz11').value=IA.voz11||'';
+    aviso(vs.length+' voces. Al elegir una la escuchas.',3000);
+  });
+}
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');

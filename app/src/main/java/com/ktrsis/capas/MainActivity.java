@@ -41,6 +41,10 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import android.media.MediaPlayer;
+import android.media.AudioAttributes;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -61,6 +65,7 @@ public class MainActivity extends Activity {
     private long ultimoNivel = 0;
     private TextToSpeech tts;
     private boolean ttsListo, hablandoTts;
+    private MediaPlayer reproductor;
     private final Handler manejador = new Handler(Looper.getMainLooper());
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
@@ -309,6 +314,21 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void reproducir(File audio) {
+        try {
+            if (reproductor != null) { try { reproductor.release(); } catch (Exception ignored) {} }
+            if (ttsListo) tts.stop();
+            hablandoTts = true; manejador.removeCallbacksAndMessages(null);
+            if (reconocedor != null) { try { reconocedor.cancel(); } catch (Exception ignored) {} }
+            reproductor = new MediaPlayer();
+            reproductor.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
+            reproductor.setDataSource(audio.getAbsolutePath());
+            reproductor.setOnCompletionListener(m -> { hablandoTts = false; m.release(); reproductor = null; if (escuchando) reiniciarVoz(250); });
+            reproductor.setOnErrorListener((m, a, b) -> { hablandoTts = false; if (escuchando) reiniciarVoz(250); return true; });
+            reproductor.prepare(); reproductor.start();
+        } catch (Exception e) { hablandoTts = false; evento("voz11_error", e.toString()); if (escuchando) reiniciarVoz(250); }
+    }
+
     /* ---------------- llamada a la API de Claude ---------------- */
     private void llamarClaude(String id, String clave, String cuerpo) {
         try {
@@ -391,6 +411,49 @@ public class MainActivity extends Activity {
                     tts.setPitch(tono > 0 ? tono : 1f);
                 } catch (Exception e) { evento("tts", e.toString()); }
             });
+        }
+
+        /** Habla con una voz de ElevenLabs (guarda las frases ya generadas para no gastar créditos). */
+        @JavascriptInterface
+        public void hablar11(String clave, String voz, String modelo, String texto, float estabilidad, float estilo) {
+            if (texto == null || texto.isEmpty()) return;
+            new Thread(() -> {
+                try {
+                    String llave = Integer.toHexString((voz + "|" + modelo + "|" + estabilidad + "|" + estilo + "|" + texto).hashCode());
+                    File dir = new File(getCacheDir(), "voz11"); dir.mkdirs();
+                    File f = new File(dir, llave + ".mp3");
+                    if (!f.exists() || f.length() < 200) {
+                        HttpURLConnection c = (HttpURLConnection) new URL("https://api.elevenlabs.io/v1/text-to-speech/" + voz + "?output_format=mp3_44100_128").openConnection();
+                        c.setRequestMethod("POST"); c.setConnectTimeout(15000); c.setReadTimeout(45000); c.setDoOutput(true);
+                        c.setRequestProperty("content-type", "application/json");
+                        c.setRequestProperty("accept", "audio/mpeg");
+                        c.setRequestProperty("xi-api-key", clave);
+                        JSONObject cuerpo = new JSONObject();
+                        cuerpo.put("text", texto); cuerpo.put("model_id", modelo);
+                        JSONObject ajustes = new JSONObject();
+                        ajustes.put("stability", estabilidad); ajustes.put("similarity_boost", 0.8); ajustes.put("style", estilo); ajustes.put("use_speaker_boost", true);
+                        cuerpo.put("voice_settings", ajustes);
+                        try (OutputStream o = c.getOutputStream()) { o.write(cuerpo.toString().getBytes("UTF-8")); }
+                        int cod = c.getResponseCode();
+                        if (cod != 200) {
+                            InputStream e = c.getErrorStream(); ByteArrayOutputStream b = new ByteArrayOutputStream(); byte[] buf = new byte[4096]; int n;
+                            if (e != null) while ((n = e.read(buf)) > 0) b.write(buf, 0, n);
+                            final String err = cod + " " + b.toString("UTF-8");
+                            runOnUiThread(() -> { evento("voz11_error", err); js("window.voz11Fallo&&voz11Fallo(" + JSONObject.quote(err) + "," + JSONObject.quote(texto) + ")"); });
+                            return;
+                        }
+                        File tmp = new File(dir, llave + ".tmp");
+                        try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(tmp)) {
+                            byte[] buf = new byte[8192]; int n; while ((n = in.read(buf)) > 0) out.write(buf, 0, n); }
+                        tmp.renameTo(f);
+                    } else runOnUiThread(() -> evento("voz11", "desde caché"));
+                    final File audio = f;
+                    runOnUiThread(() -> reproducir(audio));
+                } catch (Exception e) {
+                    final String err = e.toString();
+                    runOnUiThread(() -> { evento("voz11_error", err); js("window.voz11Fallo&&voz11Fallo(" + JSONObject.quote(err) + "," + JSONObject.quote(texto) + ")"); });
+                }
+            }).start();
         }
 
         @JavascriptInterface
