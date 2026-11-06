@@ -35,6 +35,15 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 #bMic.on{background:#1fa36a;border-color:#1fa36a;color:#fff;animation:pulso 1.6s infinite}
 @keyframes pulso{50%{box-shadow:0 0 0 6px #1fa36a33}}
 #vozTxt{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#000c;color:#fff;padding:6px 12px;border-radius:16px;font-size:13px;max-width:90%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#menuV .hoja{max-height:88vh;overflow-y:auto}
+.cmdf{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.cmdf+.cmdf{margin-top:6px}
+.cmdf .r{display:flex;gap:6px;align-items:center}
+.cmdf input[type=text]{flex:1;min-width:0}
+.cmdf select{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:13px}
+.cmdf .caps{display:flex;gap:5px;flex-wrap:wrap}
+.cmdf .caps button{padding:6px 11px;border-radius:8px;font-size:13px}
+.cmdf .x{padding:7px 11px}
 #menuV .cmd{font-size:13px;color:var(--mut);line-height:1.55;max-height:30vh;overflow-y:auto;background:var(--bg);border-radius:10px;padding:10px}
 #menuV .cmd b{color:var(--tx);font-weight:600}
 #menuV input[type=text]{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit}
@@ -291,6 +300,18 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <div class="fila" style="margin:0">
       <button id="bClaveReq" class="on" style="flex:1">Pedir palabra clave: sí</button>
     </div>
+    <div class="fila" style="margin:0">
+      <button id="bAuto" style="flex:1">Manos libres al abrir la app: no</button>
+    </div>
+    <div class="ht" style="margin-top:4px">Mis comandos</div>
+    <div class="nota" style="margin:0">Escribe la frase exacta y elige qué hace. Tus comandos se revisan antes que los de la lista de abajo.</div>
+    <div id="misCmd"></div>
+    <button id="bAddCmd">+ Agregar comando</button>
+    <div class="fila" style="margin:0">
+      <input type="text" id="txtProbar" placeholder="Escribe una frase para probarla" autocomplete="off">
+      <button id="bProbar">Probar</button>
+    </div>
+    <div class="ht" style="margin-top:4px">Comandos que ya entiende</div>
     <div class="cmd">
       Di la palabra clave y luego el comando, por ejemplo <b>"Stencil, solo capa 2 y 3"</b>. También puedes decir solo <b>"Stencil"</b>, esperar un segundo y decir el comando.<br><br>
       <b>capa 2</b> · va a esa capa (en "Ir sumando" muestra de la 1 a la 2)<br>
@@ -382,7 +403,8 @@ function prepararImagen(img,tol){
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
   $('#titulo').textContent=S.nombre;
   ajustarVista();
-  ocupado(()=>{calcFondo();calcCapas();S.vis=S.vis.map((_,i)=>i===0);pintar();});
+  ocupado(()=>{calcFondo();calcCapas();S.vis=S.vis.map((_,i)=>i===0);pintar();
+    if(typeof VOZ!=='undefined'&&VOZ.auto&&!VOZ.on)setTimeout(()=>prenderVoz(true),400);});
 }
 
 function desenfocar(g,w,h,r){ // caja separable
@@ -542,6 +564,7 @@ function reprocesar(){clearTimeout(tReproc);tReproc=setTimeout(()=>{calcCapas(fa
 function ocupado(fn){$('#cargando').classList.remove('hide');setTimeout(()=>{try{fn();}finally{$('#cargando').classList.add('hide');}},30);}
 
 $$('.tabs button').forEach(b=>b.onclick=()=>{
+  if(S.herr==='alinear'&&b.dataset.tab!=='est'){S.herr='ver';$$('#segHerr button').forEach(x=>x.classList.toggle('on',x.dataset.v==='ver'));$('#filaAlin').style.display='none';mostrarAlin(false);}
   S.tab=b.dataset.tab; if(S.tab==='est')dibujarEstCapas(); setTimeout(pintar,0);
   $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
   $$('[data-pane]').forEach(p=>p.classList.toggle('hide',p.dataset.pane!==b.dataset.tab));
@@ -908,13 +931,13 @@ function pintarEstencil(){
 }
 let tEst=0;
 function reEst(trazos){clearTimeout(tEst);tEst=setTimeout(()=>{S.lineas=null;if(trazos)S.trazos=null;ocupado(pintar);},150);}
-seg('#segEstFondo',v=>{S.estFondo=v;pintar();});
+seg('#segEstFondo',v=>{S.estFondo=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
 $('#rSuave').oninput=e=>{S.suave=+e.target.value;$('#vSuave').textContent=S.suave;reEst();};
 $('#rMin').oninput=e=>{S.minLen=+e.target.value;$('#vMin').textContent=S.minLen;reEst(true);};
 $('#rSens').oninput=e=>{S.sens=+e.target.value;$('#vSens').textContent=S.sens;reEst(true);};
 $('#rZona').oninput=e=>{S.zona=+e.target.value;$('#vZona').textContent=S.zona;reEst();};
 $('#cLineas').onchange=e=>{S.conLineas=e.target.checked;pintar();};
-seg('#segTinta',v=>{S.tinta=v;dibujarEstCapas();pintar();});
+seg('#segTinta',v=>{S.tinta=v;if(S.herr==='alinear')elegirHerr('ver');dibujarEstCapas();pintar();});
 seg('#segHerr',v=>{ if(v==='alinear'&&!S.gem){aviso('Primero importa las líneas de Gemini',2500);elegirHerr('ver');return;}
   elegirHerr(v);
   aviso(v==='lapiz'?'Un dedo dibuja · dos dedos mueven':v==='borrar'?'Un dedo borra · dos dedos mueven':v==='alinear'?'Un dedo mueve · dos dedos agrandan y giran':'',2500);});
@@ -993,15 +1016,18 @@ function importarGemini(img){
   elegirHerr('alinear');
   aviso('Ajusta con los dedos hasta que calce y toca Listo',4000);
 }
-seg('#segFuente',v=>{S.fuente=v;pintar();});
+seg('#segFuente',v=>{S.fuente=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
 $('#bAlinReset').onclick=()=>{if(S.gem){Object.assign(S.gem,S.gem.ini);pintar();}};
 $('#bAlinListo').onclick=()=>elegirHerr('ver');
 function elegirHerr(v){
   S.herr=v; $$('#segHerr button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#filaEdit').style.display=v==='lapiz'||v==='borrar'?'flex':'none';
   $('#filaAlin').style.display=v==='alinear'?'flex':'none';
+  if(v==='alinear')mostrarAlin(true);else mostrarAlin(false);
   pintar();
 }
+function mostrarAlin(on){const a=$('#aviso');clearTimeout(tAviso);
+  if(on){a.textContent='Alineando líneas de Gemini · toca Listo al terminar';a.classList.remove('hide');}else a.classList.add('hide');}
 function dibujarGem(ctx){
   const G=S.gem; ctx.save(); ctx.translate(G.cx,G.cy); ctx.rotate(G.r); ctx.scale(G.s,G.s);
   ctx.drawImage(G.cv,-G.w/2,-G.h/2); ctx.restore();
@@ -1052,22 +1078,86 @@ function protegerDeslizadores(){
 protegerDeslizadores();
 
 
+
+/* ---------- mis comandos de voz ---------- */
+const ACCIONES=[ // [id, nombre, capas: 0 no, 1 una, 2 varias, frase interna]
+  ['ir','Ir a capa (ir sumando)',1,c=>'capa '+c[0]],
+  ['solo','Solo estas capas',2,c=>'solo capa '+c.join(' ')],
+  ['mostrar','Mostrar capas',2,c=>'si capa '+c.join(' ')],
+  ['ocultar','Ocultar capas',2,c=>'no capa '+c.join(' ')],
+  ['todas','Todas las capas',0,()=>'todas'],['ninguna','Ninguna capa',0,()=>'ninguna'],
+  ['sig','Siguiente capa',0,()=>'siguiente'],['ant','Capa anterior',0,()=>'anterior'],
+  ['v_orig','Vista original',0,()=>'original'],['v_real','Vista real',0,()=>'real'],
+  ['v_plano','Vista gris plano',0,()=>'gris'],['v_guia','Vista guía',0,()=>'guia'],
+  ['fant_si','Fantasma sí',0,()=>'fantasma si'],['fant_no','Fantasma no',0,()=>'fantasma no'],
+  ['cont_si','Contorno sí',0,()=>'contorno si'],['cont_no','Contorno no',0,()=>'contorno no'],
+  ['centrar','Centrar imagen',0,()=>'centrar'],['acercar','Acercar',0,()=>'acercar'],['alejar','Alejar',0,()=>'alejar'],
+  ['tab_ver','Ir a Ver capas',0,()=>'ver capas'],['tab_est','Ir a Esténcil',0,()=>'ver estencil'],
+  ['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
+const ACC=Object.fromEntries(ACCIONES.map(a=>[a[0],a]));
+let MIS=[{frase:'primera capa',accion:'solo',capas:[1]},{frase:'enseña todo',accion:'todas',capas:[]},{frase:'la que sigue',accion:'sig',capas:[]}];
+try{const g=JSON.parse(localStorage.getItem('misComandos')||'null');if(Array.isArray(g))MIS=g;}catch(_){}
+const guardarMis=()=>{try{localStorage.setItem('misComandos',JSON.stringify(MIS));}catch(_){}};
+function dibujarMis(){
+  const box=$('#misCmd');box.innerHTML='';
+  MIS.forEach((c,i)=>{
+    const f=document.createElement('div');f.className='cmdf';
+    f.innerHTML=`<div class="r"><input type="text" placeholder="Frase, ej: primera capa" autocomplete="off"><button class="x">✕</button></div>
+      <div class="r"><select>${ACCIONES.map(a=>`<option value="${a[0]}">${a[1]}</option>`).join('')}</select></div>
+      <div class="caps"></div>`;
+    const inp=f.querySelector('input'),sel=f.querySelector('select'),caps=f.querySelector('.caps');
+    inp.value=c.frase;sel.value=c.accion;
+    const pintarCaps=()=>{const tipo=ACC[c.accion][2];caps.innerHTML='';caps.style.display=tipo?'flex':'none';
+      for(let n=1;n<=6;n++){const b=document.createElement('button');b.textContent='Capa '+n;b.classList.toggle('on',c.capas.includes(n));
+        b.onclick=()=>{if(tipo===1)c.capas=[n];else c.capas=c.capas.includes(n)?c.capas.filter(x=>x!==n):[...c.capas,n].sort();guardarMis();pintarCaps();};
+        caps.appendChild(b);}};
+    inp.oninput=()=>{c.frase=inp.value;guardarMis();};
+    sel.onchange=()=>{c.accion=sel.value;if(ACC[c.accion][2]===1)c.capas=c.capas.slice(0,1);if(ACC[c.accion][2]&&!c.capas.length)c.capas=[1];guardarMis();pintarCaps();};
+    f.querySelector('.x').onclick=()=>{MIS.splice(i,1);guardarMis();dibujarMis();};
+    pintarCaps();box.appendChild(f);
+  });
+}
+$('#bAddCmd').onclick=()=>{MIS.push({frase:'',accion:'solo',capas:[1]});guardarMis();dibujarMis();
+  const l=$$('#misCmd input[type=text]');l[l.length-1].focus();};
+$('#bProbar').onclick=()=>{const t=$('#txtProbar').value.trim();if(!t)return;
+  $('#menuV').classList.add('hide');const r=ejecutarFrase(norm(t));mostrarVoz(r||('No entendí: "'+t+'"'),2500);};
+function parecido(a,b){ // 0..1, distancia de edición
+  if(!a||!b)return 0; const m=a.length,n=b.length,d=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){let prev=d[0];d[0]=i;for(let j=1;j<=n;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=t;}}
+  return 1-d[n]/Math.max(m,n);
+}
+function buscarMio(t){
+  const limpio=t.trim();let mejor=null,pm=0;
+  for(const c of MIS){const f=norm(c.frase).trim();if(!f)continue;
+    let p=t.includes(' '+f+' ')?1+f.length/100:parecido(limpio,f);
+    if(p>pm){pm=p;mejor=c;}}
+  return pm>=0.78?mejor:null;
+}
+function ejecutarFrase(t){
+  const c=buscarMio(t);
+  if(c){const a=ACC[c.accion];const r=ejecutarVoz(norm(a[3](c.capas)));return r?(c.frase+' → '+r):null;}
+  return ejecutarVoz(t);
+}
+
 /* ---------- comandos de voz ---------- */
-const VOZ={on:false,clave:'stencil',pedir:true,armadoHasta:0,rec:null};
-try{const g=JSON.parse(localStorage.getItem('voz')||'{}');if(g.clave)VOZ.clave=g.clave;if(g.pedir===false)VOZ.pedir=false;}catch(_){}
+const VOZ={on:false,clave:'stencil',pedir:true,auto:false,armadoHasta:0,rec:null};
+try{const g=JSON.parse(localStorage.getItem('voz')||'{}');if(g.clave)VOZ.clave=g.clave;if(g.pedir===false)VOZ.pedir=false;if(g.auto)VOZ.auto=true;}catch(_){}
 $('#txtClave').value=VOZ.clave;
-function guardarVoz(){try{localStorage.setItem('voz',JSON.stringify({clave:VOZ.clave,pedir:VOZ.pedir}));}catch(_){}}
+function guardarVoz(){try{localStorage.setItem('voz',JSON.stringify({clave:VOZ.clave,pedir:VOZ.pedir,auto:VOZ.auto}));}catch(_){}}
 function pintarVozUI(){
   $('#bMic').classList.toggle('on',VOZ.on);
   $('#bVozOnOff').textContent=VOZ.on?'Apagar micrófono':'Activar micrófono';
   $('#bClaveReq').textContent='Pedir palabra clave: '+(VOZ.pedir?'sí':'no');$('#bClaveReq').classList.toggle('on',VOZ.pedir);
+  $('#bAuto').textContent='Manos libres al abrir la app: '+(VOZ.auto?'sí':'no');$('#bAuto').classList.toggle('on',VOZ.auto);
   if(!VOZ.on)$('#vozTxt').classList.add('hide');
 }
-$('#bMic').onclick=()=>{pintarVozUI();$('#menuV').classList.remove('hide');};
+$('#bMic').onclick=()=>{pintarVozUI();dibujarMis();$('#menuV').classList.remove('hide');};
+$('#bAuto').onclick=()=>{VOZ.auto=!VOZ.auto;if(VOZ.auto&&!VOZ.pedir){VOZ.pedir=true;aviso('Con manos libres la palabra clave queda activada',3000);}guardarVoz();pintarVozUI();if(VOZ.auto&&!VOZ.on)prenderVoz(true);};
 $('#bCerrarV').onclick=()=>$('#menuV').classList.add('hide');
 $('#menuV').onclick=e=>{ if(e.target.id==='menuV')$('#menuV').classList.add('hide'); };
 $('#txtClave').oninput=e=>{VOZ.clave=e.target.value.trim()||'stencil';guardarVoz();};
 $('#bClaveReq').onclick=()=>{VOZ.pedir=!VOZ.pedir;guardarVoz();pintarVozUI();};
+window.alVolver=()=>{ if(VOZ.auto&&!VOZ.on&&S.W)prenderVoz(true); };
 $('#bVozOnOff').onclick=()=>{ prenderVoz(!VOZ.on); $('#menuV').classList.add('hide'); };
 function prenderVoz(on){
   if(window.Android&&Android.voz){Android.voz(on);return;}
@@ -1104,7 +1194,7 @@ window.comandoVoz=alts=>{
     const armado=ahora<VOZ.armadoHasta;
     if(VOZ.pedir&&!tiene&&!armado)continue;
     if(tiene&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);return;}
-    const r=ejecutarVoz(t);
+    const r=ejecutarFrase(t);
     if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);return;}
   }
   if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta))mostrarVoz('No entendí: "'+alts[0]+'"',2500);

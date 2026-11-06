@@ -227,6 +227,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onPause() { super.onPause(); if (escuchando) detenerVoz(); }
+    @Override protected void onResume() { super.onResume(); if (paginaLista) js("window.alVolver&&alVolver()"); }
     @Override protected void onDestroy() { super.onDestroy(); if (reconocedor != null) reconocedor.destroy(); }
 
     @SuppressWarnings("deprecation")
