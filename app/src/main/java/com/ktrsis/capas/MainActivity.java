@@ -374,6 +374,21 @@ public class MainActivity extends Activity {
     }
 
     class Puente {
+        /** Esconde o muestra las barras de estado y navegación de la tablet. */
+        @JavascriptInterface
+        public void inmersivo(boolean on) {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 30) {
+                    android.view.WindowInsetsController c = getWindow().getInsetsController();
+                    if (c == null) return;
+                    if (on) {
+                        c.hide(android.view.WindowInsets.Type.systemBars());
+                        c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    } else c.show(android.view.WindowInsets.Type.systemBars());
+                }
+            });
+        }
+
         /** Prende o apaga la escucha de comandos de voz. */
         @JavascriptInterface
         public void voz(boolean prender) { runOnUiThread(() -> { if (prender) iniciarVoz(); else detenerVoz(); }); }

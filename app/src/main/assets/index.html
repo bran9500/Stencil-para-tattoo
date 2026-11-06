@@ -34,6 +34,11 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 #top .t{flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #bMic.on{background:#1fa36a;border-color:#1fa36a;color:#fff;animation:pulso 1.6s infinite}
 @keyframes pulso{50%{box-shadow:0 0 0 6px #1fa36a33}}
+#estadoVoz{position:absolute;left:10px;top:10px;background:#000a;color:#ddd;padding:4px 10px;border-radius:12px;font-size:12px;pointer-events:none}
+#estadoVoz.conv{background:#1fa36add;color:#fff}
+#bPantalla{position:absolute;right:10px;top:10px;width:40px;height:40px;padding:0;border-radius:12px;background:#000a;color:#fff;border:1px solid #fff3;font-size:18px;z-index:3}
+body.inmersivo #top,body.inmersivo #panel{display:none}
+body.inmersivo #bPantalla{opacity:.55}
 #vozTxt{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#000c;color:#fff;padding:6px 12px;border-radius:16px;font-size:13px;max-width:90%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 #menuV .hoja{max-height:88vh;overflow-y:auto}
 .cmdf{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
@@ -143,6 +148,8 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <div id="grid" class="hide"></div>
     <div id="aviso" class="hide"></div>
     <div id="vozTxt" class="hide"></div>
+    <div id="estadoVoz" class="hide"></div>
+    <button id="bPantalla" title="Pantalla completa">⛶</button>
     <div id="cargando" class="hide">Procesando…</div>
   </div>
   <div id="panel">
@@ -372,7 +379,10 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <p><b>Pestañas</b> · ver capas · modo capas · ver esténcil · abre esténcil</p>
       <p><b>Deshacer</b> · vuelve a la configuración anterior · deshaz · cancela · eso no · me equivoqué · como estaba · no era eso <span>(repítelo para seguir retrocediendo)</span></p>
       <p><b>Ayuda</b> · ayuda · comandos · qué puedo decir · lista de comandos</p>
-      <p><b>Apagar micrófono</b> · deja de escuchar · apágate · silencio · descansa · chao</p>
+      <p><b>Conversar</b> · di solo <b>viernes</b> y queda escuchándote: ya no tienes que repetir su nombre</p>
+      <p><b>Pausa</b> · ponte en pausa · pausa · descansa · ya no me escuches · deja de escuchar · silencio <span>(vuelve cuando la llames)</span></p>
+      <p><b>Pantalla completa</b> · pantalla completa · esconde los botones · modo limpio · <b>volver</b>: muestra los botones · sal de pantalla completa</p>
+      <p><b>Apagar micrófono</b> · apágate · apaga el micrófono</p>
       <h4>Con inteligencia activada (Claude, Gemini o servidor propio)</h4>
       <p>Habla normal: <b>quítame las sombras claras y acércame al ojo</b> · <b>¿en qué capa voy?</b> · <b>déjame solo lo oscuro de la boca</b> · <b>¿qué dilución uso para la capa 2?</b> · <b>no, eso no era</b></p>
       <p><span>Si algo no te lo entiende, créalo en "Mis comandos" con tu propia frase.</span></p>
@@ -521,7 +531,8 @@ function prepararImagen(img,tol){
   $('#titulo').textContent=S.nombre;
   ajustarVista();
   ocupado(()=>{calcFondo();calcCapas();S.vis=S.vis.map((_,i)=>i===0);pintar();
-    if(typeof VOZ!=='undefined'&&VOZ.auto&&!VOZ.on)setTimeout(()=>prenderVoz(true),400);});
+    if(typeof VOZ!=='undefined'&&VOZ.auto&&!VOZ.on)setTimeout(()=>prenderVoz(true),400);
+    try{if(localStorage.getItem('inmersivo'))pantallaCompleta(true);}catch(_){} });
 }
 
 function desenfocar(g,w,h,r){ // caja separable
@@ -702,7 +713,7 @@ $('#bFantasma').onclick=e=>{S.fantasma=!S.fantasma;e.target.textContent='Fantasm
 $('#bContorno').onclick=e=>{S.contorno=!S.contorno;e.target.textContent='Contorno: '+(S.contorno?'sí':'no');e.target.classList.toggle('on',S.contorno);pintar();};
 $('#bAnt').onclick=()=>irA(S.actual-1);
 $('#bSig').onclick=()=>irA(S.actual+1);
-$('#bVolver').onclick=()=>{ if(VOZ.on)prenderVoz(false);$('#editor').classList.add('hide');$('#inicio').classList.remove('hide');modoTocar(false);};
+$('#bVolver').onclick=()=>{ pantallaCompleta(false); if(VOZ.on)prenderVoz(false);$('#editor').classList.add('hide');$('#inicio').classList.remove('hide');modoTocar(false);};
 $('#bTocar').onclick=()=>modoTocar(!S.tocar);
 $('#bDeshacer').onclick=()=>{if(!S.huecos.length)return;S.huecos.pop();ocupado(()=>{calcFondo();calcCapas();pintar();});};
 function modoTocar(on){S.tocar=on;$('#bTocar').classList.toggle('on',on);
@@ -712,7 +723,8 @@ let tAviso=0;
 function aviso(t,ms){const a=$('#aviso');clearTimeout(tAviso);if(!t){a.classList.add('hide');return;}
   a.textContent=t;a.classList.remove('hide');if(ms)tAviso=setTimeout(()=>a.classList.add('hide'),ms);}
 
-window.onNativeBack=()=>{ if(!$('#editor').classList.contains('hide')){$('#bVolver').click();return true;} return false; };
+window.onNativeBack=()=>{ if(document.body.classList.contains('inmersivo')){pantallaCompleta(false);return true;}
+  if(!$('#editor').classList.contains('hide')){$('#bVolver').click();return true;} return false; };
 
 /* ---------- zoom y arrastre ---------- */
 const V={s:1,x:0,y:0};
@@ -1299,7 +1311,7 @@ const ACCIONES=[ // [id, nombre, capas: 0 no, 1 una, 2 varias, frase interna]
   ['der','Mover a la derecha',0,()=>'derecha'],['izq','Mover a la izquierda',0,()=>'izquierda'],['arr','Mover arriba',0,()=>'arriba'],['abj','Mover abajo',0,()=>'abajo'],
   ['centrar','Ver imagen completa',0,()=>'completa'],['grid_si','Mostrar áreas unos segundos',0,()=>'cuadricula'],['grid_fijo','Mostrar áreas fijas',0,()=>'deja la cuadricula'],['grid_no','Ocultar áreas',0,()=>'no cuadricula'],
   ['tab_ver','Ir a Ver capas',0,()=>'ver capas'],['tab_est','Ir a Esténcil',0,()=>'ver estencil'],
-  ['deshacer','Deshacer el último comando',0,()=>'deshacer'],['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
+  ['pantalla','Pantalla completa',0,()=>'pantalla completa'],['botones','Mostrar los botones',0,()=>'muestra los botones'],['deshacer','Deshacer el último comando',0,()=>'deshacer'],['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
 const ACC=Object.fromEntries(ACCIONES.map(a=>[a[0],a]));
 let MIS=[{frase:'primera capa',accion:'solo',capas:[1]},{frase:'enseña todo',accion:'todas',capas:[]},{frase:'la que sigue',accion:'sig',capas:[]}];
 try{const g=JSON.parse(localStorage.getItem('misComandos')||'null');if(Array.isArray(g))MIS=g;}catch(_){}
@@ -1400,7 +1412,16 @@ function prenderVoz(on){
     VOZ.rec=r;r.start();vozEstado('on');}
   else{VOZ.on=false;try{VOZ.rec&&VOZ.rec.stop();}catch(_){}vozEstado('off');}
 }
-window.vozEstado=e=>{VOZ.on=e==='on';pintarVozUI();
+const PAUSA=['ponte en pausa','pausa','pausate','en pausa','modo pausa','descansa','descansa un rato','ya no me escuches','deja de escucharme','no me escuches','espera que te llame','hasta que te llame','silencio','chao','duermete','a dormir','callate'];
+function esPausa(t){return tiene(t,...PAUSA)&&!tiene(t,'capa','area','zoom');}
+function ponerConversacion(on,saludar){
+  VOZ.conversando=on;pintarEstadoVoz();
+  if(on){logD('💬 modo conversación: te escucho sin decir la palabra clave');if(saludar){mostrarVoz('💬 Conversando · di "pausa" para que deje de escuchar',4000);decir(elegir(['Aquí estoy, dime.','Te escucho, Bran.','Lista, ¿qué hacemos?']));}}
+  else{logD('⏸ en pausa: di la palabra clave para volver');mostrarVoz('⏸ En pausa · di "'+cap1(VOZ.clave)+'" para volver',4000);decir(elegir(['Listo, me quedo en pausa. Me llamas cuando me necesites.','En pausa. Aquí estoy cuando me llames.','Perfecto, descanso hasta que me llames.']));}
+}
+function pintarEstadoVoz(){const b=$('#estadoVoz');if(!b)return;
+  b.classList.toggle('hide',!VOZ.on);b.textContent=VOZ.conversando?'💬 Conversando':'⏸ '+cap1(VOZ.clave);b.classList.toggle('conv',!!VOZ.conversando);}
+window.vozEstado=e=>{VOZ.on=e==='on';if(!VOZ.on)VOZ.conversando=false;pintarVozUI();pintarEstadoVoz();
   if(e==='on')mostrarVoz(`Escuchando… di "${VOZ.pedir?cap1(VOZ.clave)+', ':''}capa 2"`);};
 let tVoz=0;
 function mostrarVoz(t,ms){const v=$('#vozTxt');v.textContent='🎤 '+t;v.classList.remove('hide');clearTimeout(tVoz);
@@ -1423,9 +1444,12 @@ window.comandoVoz=alts=>{
   for(const alt of alts){
     let t=norm(alt), tieneC=false, resto=alt;
     for(const c of claves()){const i=t.indexOf(' '+c+' ');if(i>=0){t=' '+t.slice(i+c.length+1);tieneC=true;break;}}
-    const armado=ahora<VOZ.armadoHasta;
+    const armado=ahora<VOZ.armadoHasta||VOZ.conversando;
     if(VOZ.pedir&&!tieneC&&!armado){logD('   · "'+alt+'" → sin palabra clave, ignorado');continue;}
-    if(tieneC&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);decir('Dime');return;}
+    if(esPausa(t)){ponerConversacion(false);return;}
+    const yaConv=!!VOZ.conversando;
+    if(tieneC&&!yaConv)ponerConversacion(true,!t.trim());
+    if(tieneC&&!t.trim()){if(yaConv)decir(elegir(['Dime','Aquí estoy','Te escucho']));return;}
     if(!elegido)elegido={alt,t};
     // frases largas o preguntas van directo a Claude (si está activo)
     if(iaLista()&&(IA.siempre||esParaClaude(t))&&!tiene(t,...DESHACER)){VOZ.armadoHasta=0;logD('   · "'+alt+'" → 🧠 a la IA');preguntarClaude(alt);return;}
@@ -1434,7 +1458,7 @@ window.comandoVoz=alts=>{
     if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);decir(paraDecir(r));return;}
   }
   if(elegido&&iaLista()){VOZ.armadoHasta=0;logD('   · "'+elegido.alt+'" → 🧠 a la IA (no era comando)');preguntarClaude(elegido.alt);return;}
-  if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta||elegido)){mostrarVoz('No entendí: "'+alts[0]+'"',2500);if(elegido)decir('No te entendí');}
+  if(alts.length&&(!VOZ.pedir||ahora<VOZ.armadoHasta||elegido)){mostrarVoz('No entendí: "'+alts[0]+'"',2500);if(elegido&&!VOZ.conversando)decir('No te entendí');}
 };
 function esParaClaude(t){
   const n=t.trim().split(' ').filter(Boolean).length;
@@ -1467,6 +1491,9 @@ function paraDecir(r){
   if(/^Áreas fijas/.test(r))return elegir(V(['Ahí te dejo las áreas fijas.','Listo, las áreas se quedan.'],['Dejé las áreas visibles hasta que me digas.'],['Áreas fijas.']));
   if(/^Áreas$/.test(r))return elegir(V(['Mira, así está dividida.','Ahí están las nueve áreas.','Fíjate en los números.'],['Así está dividido el diseño; dime qué área quieres ver.','Ahí tienes las nueve áreas, ¿a cuál te acerco?'],['Mostrando las áreas.']));
   if(/^Áreas ocultas/.test(r))return elegir(V(['Listo, quité las áreas.','Fuera la cuadrícula.'],['Oculté las áreas.'],['Áreas ocultas.']));
+  if(/^Pantalla completa/.test(r))return elegir(V(['Listo, toda la pantalla para el diseño.','Ahí tienes la pantalla limpia.'],['Perfecto, escondí los controles para que veas el diseño completo.'],['Pantalla completa.']));
+  if(/^Botones visibles/.test(r))return elegir(V(['Ahí están los botones.','Listo, volvieron los controles.'],['Volví a mostrar los controles.'],['Controles visibles.']));
+  if(/^En pausa/.test(r))return '';
   if(/^Imagen completa/.test(r))return elegir(V(['Ahí está el diseño completo.','Listo, todo a la vista.'],['Perfecto, volví a la vista completa del diseño.'],['Vista completa.']));
   if((m=r.match(/^Vista: (.*)$/)))return elegir(V([`Listo, vista ${m[1].toLowerCase()}.`,`Te puse la vista ${m[1].toLowerCase()}.`],[`Cambié a la vista ${m[1].toLowerCase()}.`],[`Vista ${m[1].toLowerCase()}.`]));
   if(/^Deshecho/.test(r))return elegir(V(['Listo, lo devolví como estaba.','Ya, quedó como antes.','Perdón, ya lo regresé.'],['Disculpa, ya lo dejé como estaba.','Listo, deshice el último cambio.'],['Cambio deshecho.']));
@@ -1483,7 +1510,10 @@ function ejecutarVoz(t){
   const ns=numeros(t), num=ns.length>0;
   // --- generales ---
   if(has('ayuda','comandos','que puedo decir','que entiendes','lista de comandos','que comandos','que le digo')){abrirListaCmd();return 'Lista de comandos';}
-  if(has('deja de escuchar','para de escuchar','apagate','apaga el microfono','apagar microfono','apaga microfono','silencio','chao','descansa','duermete','ya no escuches','no escuches')){prenderVoz(false);return 'Micrófono apagado';}
+  if(has('apagate','apaga el microfono','apagar microfono','apaga microfono','cierra el microfono')){VOZ.conversando=false;prenderVoz(false);return 'Micrófono apagado';}
+  if(has('deja de escuchar','para de escuchar')){ponerConversacion(false);return 'En pausa';}
+  if(has('pantalla completa','esconde los botones','oculta los botones','quita los botones','esconde todo','modo limpio','pantalla limpia','sin botones','oculta el menu','esconde el menu')){pantallaCompleta(true);return 'Pantalla completa';}
+  if(has('muestra los botones','pon los botones','ensename los botones','muestrame los botones','sal de pantalla completa','quita la pantalla completa','muestra el menu','abre el menu','botones')){pantallaCompleta(false);return 'Botones visibles';}
   if(has('ver estencil','modo estencil','pestana estencil','ver stencil','ir a estencil','abre estencil','abrir estencil')){$('[data-tab=est]').click();return 'Esténcil';}
   if(!num&&has('ver capas','modo capas','ir a capas','abre capas','abrir capas','vuelve a capas')){$('[data-tab=ver]').click();return 'Ver capas';}
   // --- zoom a un área 1-9 ---
@@ -1635,7 +1665,7 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "area N" (zoom a un área 1-9) · "aumenta" · "aumenta un poco" · "aumenta mucho" · "aumenta derecha" · "aumenta izquierda" · "aumenta arriba" · "aumenta abajo" · "alejate" · "alejate un poco" · "alejate mucho"
 "derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" (muestra las 9 áreas unos segundos) · "deja la cuadricula" (áreas fijas) · "no cuadricula"
 "vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
-"fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" · "deshacer"
+"fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" · "deshacer" · "pantalla completa" · "muestra los botones"
 Usa [] si solo es una pregunta o charla.
 
 "respuesta": lo que vas a decir en voz alta. ${({cercana:"De 1 a 2 frases, en español colombiano cercano, relajado y con chispa, como una compañera del estudio que sabe de tatuaje.",elocuente:"De 1 a 3 frases, elocuente, cálida y segura, con vocabulario rico y natural, como una asistente refinada de película; nunca exagerada ni rimbombante.",profesional:"De 1 a 2 frases, en español neutro, profesional, claro y respetuoso.",breve:"Lo más corto posible: 2 a 6 palabras."})[IA.estilo]||"1 a 2 frases."} Sin emojis, sin markdown, sin listas.
@@ -1955,6 +1985,17 @@ $('#bProbarClaves').onclick=()=>{
     });
   }
 };
+
+
+/* ---------- pantalla completa ---------- */
+function pantallaCompleta(on){
+  document.body.classList.toggle('inmersivo',on);
+  $('#bPantalla').textContent=on?'☰':'⛶';
+  if(window.Android&&Android.inmersivo)Android.inmersivo(on);
+  try{localStorage.setItem('inmersivo',on?'1':'');}catch(_){}
+  setTimeout(()=>{if(S.W)ajustarVista();},120);
+}
+$('#bPantalla').onclick=()=>pantallaCompleta(!document.body.classList.contains('inmersivo'));
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
