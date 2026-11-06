@@ -49,6 +49,8 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 #menuV input[type=text]{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit}
 #top button{padding:7px 11px;border-radius:10px;font-size:14px}
 #lienzo{flex:1;position:relative;overflow:hidden;touch-action:none;background:#fff}
+#grid{position:absolute;left:0;top:0;transform-origin:0 0;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);pointer-events:none}
+#grid div{border:1px dashed #1e6bffaa;display:flex;align-items:center;justify-content:center;color:#1e6bff;opacity:.45;font-weight:700}
 #lienzo canvas{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:auto}
 #aviso{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:#000c;color:#fff;
   padding:8px 14px;border-radius:20px;font-size:14px;pointer-events:none;white-space:nowrap}
@@ -122,6 +124,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
   </div>
   <div id="lienzo">
     <canvas id="cv"></canvas>
+    <div id="grid" class="hide"></div>
     <div id="aviso" class="hide"></div>
     <div id="vozTxt" class="hide"></div>
     <div id="cargando" class="hide">Procesando…</div>
@@ -321,7 +324,10 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <b>todas</b> · <b>ninguna</b> · <b>siguiente</b> · <b>anterior</b><br>
       <b>original</b> · <b>real</b> · <b>gris</b> · <b>guía</b><br>
       <b>fantasma sí / no</b> · <b>contorno sí / no</b><br>
-      <b>centrar</b> · <b>acercar</b> · <b>alejar</b><br>
+      <b>área 5</b> · <b>zona 9</b> · zoom a esa parte (1-2-3 arriba, 4-5-6 medio, 7-8-9 abajo)<br>
+      <b>más</b> · <b>menos</b> · <b>mucho más</b> · zoom<br>
+      <b>derecha</b> · <b>izquierda</b> · <b>arriba</b> · <b>abajo</b> · mueve la vista<br>
+      <b>completa</b> · vuelve a ver todo · <b>cuadrícula sí / no</b> · muestra los números<br>
       <b>ver capas</b> · <b>ver esténcil</b><br>
       <b>deja de escuchar</b> · apaga el micrófono<br><br>
       En la pestaña Esténcil, los comandos de capa prenden o apagan las sombras del esténcil.
@@ -603,7 +609,30 @@ function ajustarVista(){
   V.s=Math.min((r.width-pad*2)/S.W,(r.height-pad*2)/S.H);
   V.x=(r.width-S.W*V.s)/2;V.y=(r.height-S.H*V.s)/2;aplicarVista();
 }
-function aplicarVista(){$('#cv').style.transform=`translate(${V.x}px,${V.y}px) scale(${V.s})`;}
+function aplicarVista(){const tr=`translate(${V.x}px,${V.y}px) scale(${V.s})`;$('#cv').style.transform=tr;
+  const g=$('#grid');if(g){g.style.width=S.W+'px';g.style.height=S.H+'px';g.style.transform=tr;
+    if(g.children.length!==9){g.innerHTML='';for(let i=1;i<=9;i++){const d=document.createElement('div');d.textContent=i;g.appendChild(d);}}
+    const fs=Math.max(S.W,S.H)/14;[...g.children].forEach(d=>{d.style.fontSize=fs+'px';d.style.borderWidth=Math.max(1,1.5/V.s)+'px';});}}
+/* ---------- zoom por áreas (3x3) y movimiento, con animación ---------- */
+let animV=0;
+function animarVista(nx,ny,ns,ms=280){
+  cancelAnimationFrame(animV);const a={x:V.x,y:V.y,s:V.s},t0=performance.now();
+  const paso=t=>{let k=Math.min(1,(t-t0)/ms);k=1-Math.pow(1-k,3);
+    V.s=a.s*Math.pow(ns/a.s,k);V.x=a.x+(nx-a.x)*k;V.y=a.y+(ny-a.y)*k;aplicarVista();if(k<1)animV=requestAnimationFrame(paso);};
+  animV=requestAnimationFrame(paso);
+}
+function zoomArea(n){
+  const r=$('#lienzo').getBoundingClientRect(),c=(n-1)%3,f=Math.floor((n-1)/3);
+  const cw=S.W/3,ch=S.H/3,cx=(c+.5)*cw,cy=(f+.5)*ch,ns=Math.min(r.width/cw,r.height/ch)*.95;
+  animarVista(r.width/2-cx*ns,r.height/2-cy*ns,ns);
+}
+function zoomCentro(k){const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2,ns=Math.max(.2,Math.min(30,V.s*k)),kk=ns/V.s;
+  animarVista(px-(px-V.x)*kk,py-(py-V.y)*kk,ns);}
+function moverVista(dx,dy){const r=$('#lienzo').getBoundingClientRect(); // dx=1: ver más a la derecha
+  animarVista(V.x-dx*r.width*.33,V.y-dy*r.height*.33,V.s);}
+function vistaCompleta(){const L=$('#lienzo'),r=L.getBoundingClientRect(),pad=10,ns=Math.min((r.width-pad*2)/S.W,(r.height-pad*2)/S.H);
+  animarVista((r.width-S.W*ns)/2,(r.height-S.H*ns)/2,ns);}
+function cuadricula(on){$('#grid').classList.toggle('hide',!on);aplicarVista();}
 (()=>{
   const L=$('#lienzo'),pts=new Map();let ini=null,movido=false,ultimoTap=0;
   let trazo=null,rafP=0;
@@ -1091,7 +1120,9 @@ const ACCIONES=[ // [id, nombre, capas: 0 no, 1 una, 2 varias, frase interna]
   ['v_plano','Vista gris plano',0,()=>'gris'],['v_guia','Vista guía',0,()=>'guia'],
   ['fant_si','Fantasma sí',0,()=>'fantasma si'],['fant_no','Fantasma no',0,()=>'fantasma no'],
   ['cont_si','Contorno sí',0,()=>'contorno si'],['cont_no','Contorno no',0,()=>'contorno no'],
-  ['centrar','Centrar imagen',0,()=>'centrar'],['acercar','Acercar',0,()=>'acercar'],['alejar','Alejar',0,()=>'alejar'],
+  ['area','Zoom a un área (1-9)',3,c=>'area '+c[0]],['acercar','Más zoom',0,()=>'mas'],['alejar','Menos zoom',0,()=>'menos'],
+  ['der','Mover a la derecha',0,()=>'derecha'],['izq','Mover a la izquierda',0,()=>'izquierda'],['arr','Mover arriba',0,()=>'arriba'],['abj','Mover abajo',0,()=>'abajo'],
+  ['centrar','Ver imagen completa',0,()=>'completa'],['grid_si','Mostrar cuadrícula',0,()=>'cuadricula'],['grid_no','Ocultar cuadrícula',0,()=>'no cuadricula'],
   ['tab_ver','Ir a Ver capas',0,()=>'ver capas'],['tab_est','Ir a Esténcil',0,()=>'ver estencil'],
   ['apagar','Dejar de escuchar',0,()=>'deja de escuchar']];
 const ACC=Object.fromEntries(ACCIONES.map(a=>[a[0],a]));
@@ -1108,11 +1139,11 @@ function dibujarMis(){
     const inp=f.querySelector('input'),sel=f.querySelector('select'),caps=f.querySelector('.caps');
     inp.value=c.frase;sel.value=c.accion;
     const pintarCaps=()=>{const tipo=ACC[c.accion][2];caps.innerHTML='';caps.style.display=tipo?'flex':'none';
-      for(let n=1;n<=6;n++){const b=document.createElement('button');b.textContent='Capa '+n;b.classList.toggle('on',c.capas.includes(n));
-        b.onclick=()=>{if(tipo===1)c.capas=[n];else c.capas=c.capas.includes(n)?c.capas.filter(x=>x!==n):[...c.capas,n].sort();guardarMis();pintarCaps();};
+      for(let n=1;n<=(tipo===3?9:6);n++){const b=document.createElement('button');b.textContent=(tipo===3?'Área ':'Capa ')+n;b.classList.toggle('on',c.capas.includes(n));
+        b.onclick=()=>{if(tipo===1||tipo===3)c.capas=[n];else c.capas=c.capas.includes(n)?c.capas.filter(x=>x!==n):[...c.capas,n].sort();guardarMis();pintarCaps();};
         caps.appendChild(b);}};
     inp.oninput=()=>{c.frase=inp.value;guardarMis();};
-    sel.onchange=()=>{c.accion=sel.value;if(ACC[c.accion][2]===1)c.capas=c.capas.slice(0,1);if(ACC[c.accion][2]&&!c.capas.length)c.capas=[1];guardarMis();pintarCaps();};
+    sel.onchange=()=>{c.accion=sel.value;if(ACC[c.accion][2]===1||ACC[c.accion][2]===3)c.capas=c.capas.slice(0,1);if(ACC[c.accion][2]&&!c.capas.length)c.capas=[1];guardarMis();pintarCaps();};
     f.querySelector('.x').onclick=()=>{MIS.splice(i,1);guardarMis();dibujarMis();};
     pintarCaps();box.appendChild(f);
   });
@@ -1207,9 +1238,22 @@ function ejecutarVoz(t){
   if(tiene(t,'deja de escuchar','apaga el microfono','apagar microfono','silencio','para de escuchar')){prenderVoz(false);return 'Micrófono apagado';}
   if(tiene(t,'ver estencil','modo estencil','pestana estencil','ver stencil')){$('[data-tab=est]').click();return 'Esténcil';}
   if(tiene(t,'ver capas','modo capas')){$('[data-tab=ver]').click();return 'Ver capas';}
-  if(tiene(t,'centrar','centra','encuadrar','ajustar')){ajustarVista();return 'Centrado';}
-  if(tiene(t,'acercar','acerca','zoom','mas cerca')){zoomVoz(1.5);return 'Acercar';}
-  if(tiene(t,'alejar','aleja','mas lejos')){zoomVoz(1/1.5);return 'Alejar';}
+  {const AREA=['area','areas','zona','cuadro','cuadrante','parte','sector','seccion'];
+   if(tiene(t,...AREA)){const m=t.match(/ (?:area|areas|zona|cuadro|cuadrante|parte|sector|seccion) (?:numero )?(\d|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve) /);
+     const N2={...NUM,siete:7,ocho:8,nueve:9};
+     if(m){const n=/^\d$/.test(m[1])?+m[1]:N2[m[1]];if(n>=1&&n<=9){zoomArea(n);return 'Zoom área '+n;}}}}
+  if(tiene(t,'cuadricula','cuadros','numeros')){const on=!tiene(t,'no','quita','oculta','apaga','sin');cuadricula(on);return 'Cuadrícula: '+(on?'sí':'no');}
+  if(tiene(t,'completa','completo','toda la imagen','imagen entera','centrar','centra','encuadrar','ajustar')&&!tiene(t,'capa','capas')){vistaCompleta();return 'Imagen completa';}
+  if(tiene(t,'derecha')){moverVista(1,0);return 'Derecha';}
+  if(tiene(t,'izquierda')){moverVista(-1,0);return 'Izquierda';}
+  if(tiene(t,'arriba','sube','subir')){moverVista(0,-1);return 'Arriba';}
+  if(tiene(t,'abajo','baja','bajar')){moverVista(0,1);return 'Abajo';}
+  if(!/\d/.test(t)&&!tiene(t,'nada mas')){
+    if(tiene(t,'mucho mas','bastante mas')){zoomCentro(2.2);return 'Mucho más zoom';}
+    if(tiene(t,'mucho menos','bastante menos')){zoomCentro(1/2.2);return 'Mucho menos zoom';}
+    if(tiene(t,'mas','acercar','acerca','zoom','mas cerca','aumenta','agranda')&&!tiene(t,'menos')){zoomCentro(1.4);return 'Más zoom';}
+    if(tiene(t,'menos','alejar','aleja','mas lejos','reduce','achica')){zoomCentro(1/1.4);return 'Menos zoom';}
+  }
   const neg=tiene(t,'no','quita','quitar','quitale','oculta','ocultar','apaga','apagar','sin','esconde','esconder','fuera','borra');
   const pos=tiene(t,'si','pon','poner','ponle','muestra','mostrar','muestrame','agrega','agregar','prende','prender','con','activa','enciende');
   if(tiene(t,'fantasma')){S.fantasma=neg?false:pos?true:!S.fantasma;$('#bFantasma').textContent='Fantasma: '+(S.fantasma?'sí':'no');$('#bFantasma').classList.toggle('on',S.fantasma);pintar();return 'Fantasma: '+(S.fantasma?'sí':'no');}
@@ -1237,7 +1281,7 @@ function ejecutarVoz(t){
   if(ns.length===1){irA(ns[0]-1);return 'Capa '+ns[0];}
   S.vis=S.vis.map((_,k)=>ns.includes(k+1));S.actual=ns[ns.length-1]-1;pintar();return 'Solo '+lista;
 }
-function zoomVoz(k){const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2;
+function zoomVoz(k){zoomCentro(k);return;const r=$('#lienzo').getBoundingClientRect(),px=r.width/2,py=r.height/2;
   V.x=px-(px-V.x)*k;V.y=py-(py-V.y)*k;V.s*=k;aplicarVista();}
 
 /* ---------- guardar ---------- */
