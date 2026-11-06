@@ -431,6 +431,8 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <div class="fila" style="margin:0"><label style="min-width:70px">Velocidad</label><input type="range" id="rVel" min="6" max="16" value="10"><span class="v" id="vVel">1.0</span></div>
     <div class="fila" style="margin:0"><label style="min-width:70px">Tono</label><input type="range" id="rTono" min="6" max="16" value="10"><span class="v" id="vTono">1.0</span></div>
     <button id="bOirVoz">🔊 Escuchar esta voz</button>
+    <button id="bProbarClaves">🔑 Probar todas las claves</button>
+    <div id="resClaves" class="diag" style="display:none"></div>
     <div class="ht" style="margin-top:4px">Cerebros de respaldo</div>
     <div class="nota" style="margin:0">Si el principal falla (saturado, sin cupo, sin internet o clave mala), la app pasa sola al siguiente con clave, en este orden. Toca el nombre para activarlo o desactivarlo.</div>
     <div id="listaResp"></div>
@@ -1601,7 +1603,11 @@ const IA={siempre:false,motor:'tablet',key11:'',voz11:'',voz11Nombre:'',modelo11
 try{const g=JSON.parse(localStorage.getItem('ia')||'{}');IA.claves=g.claves||{};if(g.key&&!IA.claves[g.prov||'gemini'])IA.claves[g.prov||'gemini']=g.key;
   IA.respaldos=g.respaldos||{};IA.modelos=g.modelos||{};
   Object.assign(IA,{siempre:!!g.siempre,motor:g.motor||'tablet',key11:g.key11||'',voz11:g.voz11||'',voz11Nombre:g.voz11Nombre||'',modelo11:g.modelo11||'eleven_flash_v2_5',estab:g.estab??.5,expr:g.expr??.2,estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
+function repararClaves(){let cambio=false;const todas=[[IA.prov,IA.key],...Object.entries(IA.claves||{})];
+  for(const [pv,k] of todas){const t=tipoClave(k);if(t&&t!==pv&&t!=='eleven'){IA.claves=IA.claves||{};if(!IA.claves[t]||IA.claves[t]===k){IA.claves[t]=k;}if(pv===IA.prov)IA.key='';delete IA.claves[pv];cambio=true;}}
+  if(IA.claves&&IA.claves[IA.prov]&&!IA.key&&tipoClave(IA.claves[IA.prov])!==''&&tipoClave(IA.claves[IA.prov])===IA.prov)IA.key=IA.claves[IA.prov];return cambio;}
 const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({respaldos:IA.respaldos||{},modelos:IA.modelos||{},siempre:IA.siempre,motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
+if(repararClaves())guardarIA();
 const iaLista=()=>IA.on&&(listoProv(IA.prov)||ORDEN_RESPALDO.some(pv=>(IA.respaldos||{})[pv]!==false&&listoProv(pv)));
 function decir(t){ if(!IA.voz||!t||!window.Android)return;
   if(IA.motor==='eleven'&&IA.key11&&IA.voz11&&Android.hablar11){Android.hablar11(IA.key11,IA.voz11,IA.modelo11,t,IA.estab,IA.expr);return;}
@@ -1794,7 +1800,7 @@ function dibujarRespaldos(){
     f.innerHTML=`<div class="r"><button class="tg" style="flex:1;text-align:left">${on?'✅':'⬜'} ${NOMBRE_PROV(pv)}${pv==='claude'?' (de pago)':' (gratis)'}</button><span class="est" style="font-size:12px;color:var(--mut)">${listoProv(pv)?'clave lista':'falta clave'}</span></div>
       <div class="r"><input type="password" placeholder="${ph[pv]}" autocomplete="off"></div>`;
     const inp=f.querySelector('input');inp.value=claveDe(pv);
-    inp.oninput=()=>{IA.claves=IA.claves||{};IA.claves[pv]=inp.value.replace(/[\s"']/g,'');guardarIA();f.querySelector('.est').textContent=listoProv(pv)?'clave lista':'falta clave';};
+    inp.oninput=()=>{const k=inp.value.replace(/[\s"']/g,'');if(ubicarClave(k,pv)){inp.value=claveDe(pv);return;}IA.claves=IA.claves||{};IA.claves[pv]=k;guardarIA();f.querySelector('.est').textContent=listoProv(pv)?'clave lista':'falta clave';};
     f.querySelector('.tg').onclick=()=>{IA.respaldos=IA.respaldos||{};IA.respaldos[pv]=!on;guardarIA();dibujarRespaldos();};
     box.appendChild(f);
   }
@@ -1821,7 +1827,7 @@ $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)a
 $('#bSiempreIA').onclick=()=>{IA.siempre=!IA.siempre;guardarIA();pintarIAUI();aviso(IA.siempre?'Todo lo que digas pasa por la IA (un poco más lento)':'Los comandos cortos los hace la app al instante',3500);};
 $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
 const limpiarClave=v=>v.replace(/[\s"'“”]/g,'');
-$('#txtKey').oninput=$('#txtKey').onchange=e=>{IA.key=limpiarClave(e.target.value);guardarIA();};
+$('#txtKey').oninput=$('#txtKey').onchange=e=>{const k=limpiarClave(e.target.value);if(ubicarClave(k,IA.prov)){e.target.value=IA.key;return;}IA.key=k;guardarIA();};
 $('#selModelo').onchange=e=>{IA.modelo=e.target.value;guardarIA();};
 $('#selProv').onchange=e=>{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;IA.modelos=IA.modelos||{};IA.modelos[IA.prov]=IA.modeloLibre;IA.prov=e.target.value;IA.key=(IA.claves[IA.prov]||'');IA.modeloLibre=IA.modelos[IA.prov]||'';IA.hist=[];dibujarRespaldos();guardarIA();pintarIAUI();};
 $('#txtUrl').onchange=e=>{IA.url=e.target.value.trim();guardarIA();};
@@ -1873,7 +1879,7 @@ function pintarEleven(){
   $('#selVoz11').value=IA.voz11;
 }
 $('#selMotor').onchange=e=>{IA.motor=e.target.value;guardarIA();pintarEleven();if(IA.motor==='eleven'&&IA.key11&&!IA.voz11)cargarVoces11();};
-$('#txtKey11').oninput=e=>{IA.key11=e.target.value.replace(/[\s"']/g,'');guardarIA();};
+$('#txtKey11').oninput=e=>{const k=e.target.value.replace(/[\s"']/g,'');if(ubicarClave(k,'eleven')){e.target.value=IA.key11;return;}IA.key11=k;guardarIA();};
 $('#selModelo11').onchange=e=>{IA.modelo11=e.target.value;guardarIA();};
 $('#rEstab').oninput=e=>{IA.estab=+e.target.value/10;$('#vEstab').textContent=IA.estab.toFixed(1);guardarIA();};
 $('#rExpr').oninput=e=>{IA.expr=+e.target.value/10;$('#vExpr').textContent=IA.expr.toFixed(1);guardarIA();};
@@ -1898,6 +1904,46 @@ function cargarVoces11(){
     aviso(vs.length+' voces. Al elegir una la escuchas.',3000);
   });
 }
+
+
+/* ---------- reconocer claves y probarlas ---------- */
+function tipoClave(k){k=k||'';return k.startsWith('AIza')?'gemini':k.startsWith('sk-or-')?'openrouter':k.startsWith('gsk_')?'groq':k.startsWith('sk-ant-')?'claude':/^sk_[a-z0-9]/i.test(k)?'eleven':'';}
+function ubicarClave(k,donde){ // guarda la clave en el cerebro que le corresponde; devuelve true si la movió
+  const t=tipoClave(k);if(!t||t===donde)return false;
+  if(t==='eleven'){IA.key11=k;}
+  else if(t===IA.prov){IA.key=k;}
+  else{IA.claves=IA.claves||{};IA.claves[t]=k;}
+  guardarIA();aviso('Esa clave es de '+(t==='eleven'?'ElevenLabs':NOMBRE_PROV(t))+': la guardé allá',4000);
+  setTimeout(()=>{pintarIAUI();},50);return true;
+}
+const huella=k=>k?k.slice(0,7)+'…'+k.slice(-4)+' ('+k.length+')':'(vacía)';
+$('#bProbarClaves').onclick=()=>{
+  const box=$('#resClaves');box.style.display='';box.innerHTML='Probando…';
+  const lista=[];
+  for(const pv of ['gemini','openrouter','groq','claude']){const k=claveDe(pv);if(k)lista.push([pv,k]);}
+  if(IA.key11)lista.push(['eleven',IA.key11]);
+  if(!lista.length){box.innerHTML='No hay ninguna clave guardada.';return;}
+  const filas={};const pintar=()=>{box.innerHTML=lista.map(([pv])=>filas[pv]||`<b>${pv==='eleven'?'ElevenLabs':NOMBRE_PROV(pv)}</b>: probando…`).join('\n');};pintar();
+  let ok=0,hechas=0;
+  for(const [pv,k] of lista){
+    const nom=pv==='eleven'?'ElevenLabs':NOMBRE_PROV(pv);
+    const malTipo=tipoClave(k)&&tipoClave(k)!==pv;
+    let url,enc,cuerpo=null;
+    if(pv==='gemini'){url=PROV.gemini.base+'/models';enc={'Authorization':'Bearer '+k};}
+    else if(pv==='groq'){url=PROV.groq.base+'/models';enc={'Authorization':'Bearer '+k};}
+    else if(pv==='openrouter'){url='https://openrouter.ai/api/v1/key';enc={'Authorization':'Bearer '+k};}
+    else if(pv==='claude'){url='https://api.anthropic.com/v1/messages';enc={'x-api-key':k,'anthropic-version':'2023-06-01'};cuerpo={model:IA.modelo,max_tokens:5,messages:[{role:'user',content:'di ok'}]};}
+    else {url='https://api.elevenlabs.io/v1/user';enc={'xi-api-key':k};}
+    httpIA(url,enc,cuerpo,(cod,txt)=>{
+      let m='';try{const j=JSON.parse(txt);m=(j.error&&(j.error.message||j.error))||(Array.isArray(j)&&j[0]&&j[0].error&&j[0].error.message)||(j.detail&&(j.detail.message||j.detail.status||j.detail))||'';}catch(_){m=String(txt).slice(0,80);}
+      if(typeof m!=='string')m=JSON.stringify(m);
+      const bien=cod===200;if(bien)ok++;
+      filas[pv]=`<b>${nom}</b>: ${bien?'<span class="ok">✔ funciona</span>':'<span class="mal">✖ '+cod+'</span> '+m.slice(0,90)} · clave ${huella(k)}${malTipo?' <span class="mal">← esta clave parece de '+tipoClave(k)+'</span>':''}`;
+      logD('🔑 '+nom+' '+cod+' '+m.slice(0,100)+' '+huella(k));
+      pintar();if(++hechas===lista.length){const msg=ok===lista.length?'Todas las claves funcionan':ok?`Funcionan ${ok} de ${lista.length} claves`:'Ninguna clave funcionó';decir(msg);}
+    });
+  }
+};
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
