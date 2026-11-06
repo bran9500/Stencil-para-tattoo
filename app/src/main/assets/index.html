@@ -408,6 +408,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <select id="selModelo" class="dsel"><option value="claude-haiku-5-5">Haiku · rápido y barato (recomendado)</option><option value="claude-sonnet-5-5">Sonnet · más inteligente, un poco más lento</option></select>
     <input type="text" id="txtModelo" placeholder="Modelo (ej: gemini-2.5-flash o llama3.1)" autocomplete="off">
     <button id="bVozResp" class="on">Responder en voz alta: sí</button>
+    <button id="bSiempreIA">Conversar siempre con la IA: no</button>
     <select id="selEstilo" class="dsel">
       <option value="cercana">Estilo: cercana y relajada (colombiana)</option>
       <option value="elocuente">Estilo: elocuente y cálida</option>
@@ -1414,7 +1415,7 @@ window.comandoVoz=alts=>{
     if(tieneC&&!t.trim()){VOZ.armadoHasta=ahora+6000;mostrarVoz('Te escucho…',6000);decir('Dime');return;}
     if(!elegido)elegido={alt,t};
     // frases largas o preguntas van directo a Claude (si está activo)
-    if(iaLista()&&esParaClaude(t)){VOZ.armadoHasta=0;logD('   · "'+alt+'" → 🧠 a la IA');preguntarClaude(alt);return;}
+    if(iaLista()&&(IA.siempre||esParaClaude(t))&&!tiene(t,...DESHACER)){VOZ.armadoHasta=0;logD('   · "'+alt+'" → 🧠 a la IA');preguntarClaude(alt);return;}
     const r=ejecutarFrase(t);
     logD('   · "'+alt+'" → '+(r?'✔ '+r:'no es un comando'));
     if(r){VOZ.armadoHasta=0;mostrarVoz(r,2500);decir(paraDecir(r));return;}
@@ -1427,7 +1428,35 @@ function esParaClaude(t){
   const pregunta=/ (que|como|cual|cuales|por que|porque|cuanto|cuanta|cuantas|cuantos|donde|cuando|puedes|podrias|recomiendas|ayudame|explicame|dime|sabes|crees|opinas) /.test(t)&&!tiene(t,'que puedo decir','que comandos','que le digo');
   return n>6||pregunta;
 }
-function paraDecir(r){return r.replace(/.*→ /,'').replace(/·/g,',').replace(/Zoom área/,'Zoom al área');}
+const NUMS=['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve'];
+const nPal=n=>NUMS[+n]||n;
+function listaPal(txt){const ns=(txt.match(/\d+/g)||[]).map(nPal);return ns.length<=1?(ns[0]||''):ns.slice(0,-1).join(', la ')+' y la '+ns[ns.length-1];}
+let ultimaFrase='';
+function elegir(arr){const ops=arr.filter(x=>x!==ultimaFrase);const f=(ops.length?ops:arr)[Math.floor(Math.random()*(ops.length||arr.length))];ultimaFrase=f;return f;}
+function paraDecir(r){
+  r=r.replace(/.*→ /,'');const e=IA.estilo||'cercana';
+  if(e==='breve')return r.replace(/·/g,',');
+  const V=(c,el,pr)=>e==='elocuente'?el:e==='profesional'?pr:c;
+  let m;
+  if((m=r.match(/^Capa (\d+)$/)))return elegir(V([`Listo, vamos en la ${nPal(m[1])}.`,`Ahí está la ${nPal(m[1])}, dale.`,`Capa ${nPal(m[1])} lista, parce.`,`Te dejé hasta la ${nPal(m[1])}.`],
+    [`Perfecto, ya estamos en la capa ${nPal(m[1])}.`,`Listo, la capa ${nPal(m[1])} está a la vista.`,`Avanzamos a la capa ${nPal(m[1])}; cuando quieras seguimos.`],[`Capa ${nPal(m[1])} visible.`,`Mostrando hasta la capa ${nPal(m[1])}.`]));
+  if((m=r.match(/^(?:Solo|Capas) (.*)$/))&&/\d/.test(m[1])){const l=listaPal(m[1]);const a=/ a /.test(m[1]);
+    return elegir(V([`Listo, te dejo solo la ${l}.`,`Ahí tienes la ${l}, lo demás lo apagué.`,`Hecho, solo la ${l} a la vista.`],
+      [`Perfecto, dejé únicamente la ${l} a la vista.`,`Listo, ahora solo ves la ${l}; el resto quedó oculto.`,`Hecho. Me quedé solo con la ${l}${a?'':''}.`],[`Solo la ${l} visible.`,`Mostrando únicamente la ${l}.`]));}
+  if((m=r.match(/^Con (.*)$/))){const l=listaPal(m[1]);return elegir(V([`Listo, prendí la ${l}.`,`Ahí te sumé la ${l}.`,`Dale, la ${l} ya está.`],[`Agregué la ${l} a la vista.`,`Perfecto, la ${l} ya está visible.`],[`Capa ${l} activada.`]));}
+  if((m=r.match(/^Sin (.*)$/))){const l=listaPal(m[1]);return elegir(V([`Listo, quité la ${l}.`,`Fuera la ${l}.`,`Hecho, la ${l} ya no se ve.`],[`Oculté la ${l}, como pediste.`,`Listo, retiré la ${l} de la vista.`],[`Capa ${l} oculta.`]));}
+  if(/^Todas las capas/.test(r))return elegir(V(['Ahí está todo completo.','Listo, todas prendidas.','Todo a la vista, parce.'],['Perfecto, ya tienes todas las capas a la vista.','Listo, el diseño completo está visible.'],['Todas las capas visibles.']));
+  if(/^Ninguna capa/.test(r))return elegir(V(['Listo, apagué todo.','Pantalla limpia.','Todo apagado.'],['Listo, oculté todas las capas.','Hecho, la vista quedó en blanco.'],['Ninguna capa visible.']));
+  if((m=r.match(/^Zoom área (\d)/)))return elegir(V([`Ahí te acerqué al área ${nPal(m[1])}.`,`Listo, área ${nPal(m[1])}.`,`Zoom al ${nPal(m[1])}, dale.`],[`Perfecto, te acerqué al área ${nPal(m[1])}.`,`Listo, ya estamos en detalle sobre el área ${nPal(m[1])}.`],[`Zoom al área ${nPal(m[1])}.`]));
+  if(/zoom/i.test(r)&&/Más|más/.test(r)){const lado=(r.match(/hacia (.*)$/)||[])[1];return elegir(V([`Ahí te acerco${lado?' hacia la '+lado:''}.`,'Más cerquita.','Listo, acerqué.'],[`Te acerqué un poco más${lado?' hacia la '+lado:''}.`,'Perfecto, ya ves más de cerca.'],['Acercando.']));}
+  if(/zoom/i.test(r)&&/Menos|menos/.test(r))return elegir(V(['Ahí te alejo un poco.','Listo, más lejos.','Alejé.'],['Te alejé un poco para que veas más.','Perfecto, ya tienes una vista más amplia.'],['Alejando.']));
+  if((m=r.match(/^Mover (.*)$/)))return elegir(V([`Ahí te muevo a la ${m[1]}.`,`Listo, hacia la ${m[1]}.`],[`Moví la vista hacia la ${m[1]}.`],[`Moviendo a la ${m[1]}.`]));
+  if(/^Imagen completa/.test(r))return elegir(V(['Ahí está el diseño completo.','Listo, todo a la vista.'],['Perfecto, volví a la vista completa del diseño.'],['Vista completa.']));
+  if((m=r.match(/^Vista: (.*)$/)))return elegir(V([`Listo, vista ${m[1].toLowerCase()}.`,`Te puse la vista ${m[1].toLowerCase()}.`],[`Cambié a la vista ${m[1].toLowerCase()}.`],[`Vista ${m[1].toLowerCase()}.`]));
+  if(/^Deshecho/.test(r))return elegir(V(['Listo, lo devolví como estaba.','Ya, quedó como antes.','Perdón, ya lo regresé.'],['Disculpa, ya lo dejé como estaba.','Listo, deshice el último cambio.'],['Cambio deshecho.']));
+  if(/^No hay nada que deshacer/.test(r))return V('No hay nada que devolver.','No tengo cambios para deshacer.','Nada que deshacer.');
+  return r.replace(/·/g,',');
+}
 function numeros(t){const out=[];for(const w of t.trim().split(' ')){if(/^\d+$/.test(w))out.push(+w);else if(NUM[w])out.push(NUM[w]);else if(w==='ultima'||w==='ultimo')out.push(S.N);}
   return out.filter(n=>n>=1&&n<=S.N);}
 const tiene=(t,...ws)=>ws.some(w=>t.includes(' '+w+' '));
@@ -1551,10 +1580,10 @@ setTimeout(aplicarConfigVoz,300);
 
 
 /* ---------- Viernes con Claude ---------- */
-const IA={motor:'tablet',key11:'',voz11:'',voz11Nombre:'',modelo11:'eleven_flash_v2_5',estab:.5,expr:.2,estilo:'cercana',vozTts:'',vel:1,tono:1,on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
+const IA={siempre:false,motor:'tablet',key11:'',voz11:'',voz11Nombre:'',modelo11:'eleven_flash_v2_5',estab:.5,expr:.2,estilo:'cercana',vozTts:'',vel:1,tono:1,on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
 try{const g=JSON.parse(localStorage.getItem('ia')||'{}');IA.claves=g.claves||{};if(g.key&&!IA.claves[g.prov||'gemini'])IA.claves[g.prov||'gemini']=g.key;
-  Object.assign(IA,{motor:g.motor||'tablet',key11:g.key11||'',voz11:g.voz11||'',voz11Nombre:g.voz11Nombre||'',modelo11:g.modelo11||'eleven_flash_v2_5',estab:g.estab??.5,expr:g.expr??.2,estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
-const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
+  Object.assign(IA,{siempre:!!g.siempre,motor:g.motor||'tablet',key11:g.key11||'',voz11:g.voz11||'',voz11Nombre:g.voz11Nombre||'',modelo11:g.modelo11||'eleven_flash_v2_5',estab:g.estab??.5,expr:g.expr??.2,estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
+const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({siempre:IA.siempre,motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
 const iaLista=()=>IA.on&&(IA.prov==='propio'?IA.url.length>8:IA.key.length>15);
 function decir(t){ if(!IA.voz||!t||!window.Android)return;
   if(IA.motor==='eleven'&&IA.key11&&IA.voz11&&Android.hablar11){Android.hablar11(IA.key11,IA.voz11,IA.modelo11,t,IA.estab,IA.expr);return;}
@@ -1584,14 +1613,25 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" · "deshacer"
 Usa [] si solo es una pregunta o charla.
 
-"respuesta": ${({cercana:"máximo 2 frases cortas, en español colombiano cercano y relajado, como un parcero del estudio",elocuente:"de 1 a 3 frases, elocuente, cálida y bien articulada, con vocabulario rico y natural, como una asistente refinada; sin sonar exagerada",profesional:"máximo 2 frases, en español neutro, profesional, claro y respetuoso",breve:"lo más corto posible: 2 a 6 palabras"})[IA.estilo]||"máximo 2 frases cortas"}, para leer en voz alta. Sin emojis, sin markdown, sin listas. Confirma lo que hiciste o responde lo que pregunta.
+"respuesta": lo que vas a decir en voz alta. ${({cercana:"De 1 a 2 frases, en español colombiano cercano, relajado y con chispa, como una compañera del estudio que sabe de tatuaje.",elocuente:"De 1 a 3 frases, elocuente, cálida y segura, con vocabulario rico y natural, como una asistente refinada de película; nunca exagerada ni rimbombante.",profesional:"De 1 a 2 frases, en español neutro, profesional, claro y respetuoso.",breve:"Lo más corto posible: 2 a 6 palabras."})[IA.estilo]||"1 a 2 frases."} Sin emojis, sin markdown, sin listas.
 
 Reglas:
 - Interpreta lo que quiere aunque lo diga raro o la transcripción tenga errores. "sombras claras" = las primeras capas, "oscuras" = las últimas, "medias" = las del medio.
 - Si nombra una parte del dibujo (ojo, boca, cuerno, pelo), elige el área 1-9 más probable según dónde suele estar en un retrato o diseño vertical y dile cuál usaste, para que te corrija si no es.
 - Si dice que te equivocaste o que no era eso, usa "deshacer".
 - Si te pregunta de tatuaje (agujas, diluciones, voltaje, técnica, cuidados), responde breve y útil, como colega con experiencia.
-- Si no entiendes, acciones [] y haz una pregunta corta.`;}
+- Si no entiendes, acciones [] y haz una pregunta corta.
+
+Personalidad:
+- Tienes personalidad propia: atenta, segura y con buen humor; acompañas a Bran mientras trabaja.
+- NUNCA repitas las palabras exactas de Bran ni suenes como un eco ("solo capa 2" → no digas "solo capa 2"). Di lo que hiciste con tus propias palabras y varía la forma cada vez.
+- Usa vocabulario variado y natural. Puedes sumar, a veces, un comentario breve y útil (un consejo de sombreado, ánimo, o qué sigue), sin alargarte.
+- Si te saluda o conversa, conversa de verdad, con naturalidad.
+
+Ejemplos (estilo, no copiar literal):
+Bran: "solo capa dos y tres" → {"acciones":["solo capa 2 3"],"respuesta":"Listo, te dejé las sombras medias; lo claro y lo oscuro quedan guardados."}
+Bran: "acércame al ojo" → {"acciones":["area 2","aumenta"],"respuesta":"Ahí te acerqué al ojo, en el área dos. Si no era ahí, me dices y lo muevo."}
+Bran: "qué más pues" → {"acciones":[],"respuesta":"Aquí firme, acompañándote. ¿Seguimos con las medias o le damos al negro?"}`;}
 let nPeticion=0;
 function httpIA(url,enc,cuerpo,cb){ // cuerpo null = GET
   const id='h'+(++nPeticion);IA.pend[id]={cb};
@@ -1634,12 +1674,12 @@ function preguntarClaude(texto,extra={}){
   const mensajes=[...IA.hist.slice(-8),{role:'user',content:`[Estado actual de la app: ${estadoTexto()}]\nBran dijo: "${texto}"`}];
   let url,enc,cuerpo;
   if(IA.prov==='claude'){url='https://api.anthropic.com/v1/messages';enc={'x-api-key':IA.key,'anthropic-version':'2023-06-01'};
-    cuerpo={model:IA.modelo,max_tokens:400,system:sistemaIA(),messages:mensajes};}
+    cuerpo={model:IA.modelo,max_tokens:400,temperature:.8,system:sistemaIA(),messages:mensajes};}
   else{ // formato compatible con OpenAI: Gemini o servidor propio (Ollama, LM Studio...)
     url=esNube()?PROV[IA.prov].base+'/chat/completions':IA.url.replace(/\/+$/,'')+(/\/chat\/completions$/.test(IA.url)?'':'/v1/chat/completions');
     enc=IA.key?{'Authorization':'Bearer '+IA.key}:{};
     if(IA.prov==='openrouter')enc['X-Title']='Stencil Lab';
-    cuerpo={model:extra.modelo||(esNube()?IA.modeloLibre:(IA.modeloLibre||'llama3.1')),max_tokens:400,temperature:.3,
+    cuerpo={model:extra.modelo||(esNube()?IA.modeloLibre:(IA.modeloLibre||'llama3.1')),max_tokens:400,temperature:.8,
       messages:[{role:'system',content:sistemaIA()},...mensajes]};}
   const nombre=IA.prov==='claude'?'Claude '+IA.modelo:esNube()?PROV[IA.prov].nombre+' '+cuerpo.model:'servidor '+cuerpo.model;
   logD('🧠 → '+nombre+': '+texto);
@@ -1708,10 +1748,12 @@ function pintarIAUI(){
     'Un modelo abierto corriendo en tu computador, en la misma red wifi. En Ollama: OLLAMA_HOST=0.0.0.0 y usa la IP del computador.';
   $('#notaProv').textContent+=' Todo se guarda solo en este aparato, nunca en el código.';
   $('#bVozResp').textContent='Responder en voz alta: '+(IA.voz?'sí':'no');$('#bVozResp').classList.toggle('on',IA.voz);
+  $('#bSiempreIA').textContent='Conversar siempre con la IA: '+(IA.siempre?'sí':'no');$('#bSiempreIA').classList.toggle('on',IA.siempre);
   $('#txtKey').value=IA.key;$('#selModelo').value=IA.modelo;
   $('#selEstilo').value=IA.estilo;llenarVoces();pintarEleven();$('#rVel').value=Math.round(IA.vel*10);$('#vVel').textContent=(+IA.vel).toFixed(1);$('#rTono').value=Math.round(IA.tono*10);$('#vTono').textContent=(+IA.tono).toFixed(1);
 }
 $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)aviso('Pega tu clave de API de Claude',3000);};
+$('#bSiempreIA').onclick=()=>{IA.siempre=!IA.siempre;guardarIA();pintarIAUI();aviso(IA.siempre?'Todo lo que digas pasa por la IA (un poco más lento)':'Los comandos cortos los hace la app al instante',3500);};
 $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo, te voy a responder en voz alta');};
 const limpiarClave=v=>v.replace(/[\s"'“”]/g,'');
 $('#txtKey').oninput=$('#txtKey').onchange=e=>{IA.key=limpiarClave(e.target.value);guardarIA();};
