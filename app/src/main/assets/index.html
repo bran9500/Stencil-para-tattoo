@@ -159,11 +159,12 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
         <input type="range" id="rFondo" min="0" max="12" value="3">
         <span class="v" id="vFondo">3</span>
       </div>
+      <div class="nota" id="perdido"></div>
       <div class="fila">
         <button id="bTocar" style="flex:2">Tocar huecos para borrar</button>
         <button id="bDeshacer" style="flex:1">Deshacer</button>
       </div>
-      <div class="nota">El fondo se quita desde los bordes. Si quedan huecos encerrados (entre cuernos, dientes…), activa "Tocar huecos" y toca cada uno. 0 = no quitar fondo.</div>
+      <div class="nota">El fondo se quita desde los bordes. Úsalo solo si el diseño tiene un fondo liso y separado. En bocetos claros sobre papel déjalo en 0, o se borra parte del dibujo. Para huecos encerrados (entre cuernos, dientes…), activa "Tocar huecos" y toca cada uno.</div>
     </div>
   </div>
 </section>
@@ -198,20 +199,21 @@ $('#archivo').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   S.nombre=(f.name||'diseño').replace(/\.[^.]+$/,'');
   const url=URL.createObjectURL(f);
-  cargarURL(url,()=>URL.revokeObjectURL(url));
+  cargarURL(url,()=>URL.revokeObjectURL(url),0);
   e.target.value='';
 };
-$('#bEjemplo').onclick=()=>{S.nombre='craneo';cargarURL('ejemplo.jpg');};
-window.abrirDesdeAndroid=(datos,nombre)=>{S.nombre=nombre||'diseño';cargarURL(datos);};
+$('#bEjemplo').onclick=()=>{S.nombre='craneo';cargarURL('ejemplo.jpg',null,3);};
+window.abrirDesdeAndroid=(datos,nombre)=>{S.nombre=nombre||'diseño';cargarURL(datos,null,0);};
 
-function cargarURL(url,fin){
+function cargarURL(url,fin,tol){
   const img=new Image();
-  img.onload=()=>{fin&&fin();prepararImagen(img);};
+  img.onload=()=>{fin&&fin();prepararImagen(img,tol);};
   img.onerror=()=>{fin&&fin();alert('No se pudo abrir la imagen.');};
   img.src=url;
 }
 
-function prepararImagen(img){
+function prepararImagen(img,tol){
+  S.tolFondo=tol||0;$('#rFondo').value=S.tolFondo;$('#vFondo').textContent=S.tolFondo;
   let w=img.naturalWidth,h=img.naturalHeight,k=Math.min(1,MAXLADO/Math.max(w,h));
   w=Math.round(w*k);h=Math.round(h*k);
   const c=document.createElement('canvas');c.width=w;c.height=h;
@@ -261,6 +263,7 @@ function calcFondo(){
   // limpiar motas sueltas dentro del fondo y borde fino
   S.fondo=m;
 }
+function avisarPerdida(){ if(S.perdido>25&&(S.tolFondo>0)) aviso(`Ojo: el fondo está borrando ${S.perdido}% del dibujo. Bájalo en Fondo.`,4500); }
 function tocarHueco(i){
   if(S.fondo[i])return;
   S.huecos.push(i);
@@ -297,6 +300,11 @@ function calcCapas(redibujarCortes=true){
   for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const i=y*W+x;
     if(!fondo[i]&&(fondo[i-1]||fondo[i+1]||fondo[i-W]||fondo[i+W]))bd[i]=1;}
   S.borde=bd;
+  let tinta=0,borrado=0;
+  for(let i=0;i<gris.length;i++){ if(gris[i]<piel){tinta++; if(fondo[i])borrado++;} }
+  S.perdido=tinta?Math.round(borrado*100/tinta):0;
+  const el=$('#perdido');
+  if(el) el.textContent=S.tolFondo>0||S.huecos.length?`El borrado de fondo está quitando ${S.perdido}% de los grises de la imagen.`+(S.perdido>25?' Si se pierde parte del dibujo, bájalo a 0.':''):'';
   dibujarCapas(); if(redibujarCortes) dibujarCortes();
 }
 function rangoCapa(k){ // k: 0 = más clara
@@ -389,7 +397,7 @@ seg('#segRep',v=>{S.rep=v;S.cortesManual=false;ocupado(()=>{calcCapas();pintar()
 $('#rPiel').oninput=e=>{S.piel=+e.target.value;$('#vPiel').textContent=S.piel;S.cortesManual=false;
   clearTimeout(tReproc);tReproc=setTimeout(()=>{calcCapas();pintar();},80);};
 $('#rFondo').oninput=e=>{S.tolFondo=+e.target.value;$('#vFondo').textContent=S.tolFondo;
-  clearTimeout(tReproc);tReproc=setTimeout(()=>ocupado(()=>{calcFondo();calcCapas();pintar();}),150);};
+  clearTimeout(tReproc);tReproc=setTimeout(()=>ocupado(()=>{calcFondo();calcCapas();pintar();avisarPerdida();}),150);};
 $('#bFantasma').onclick=e=>{S.fantasma=!S.fantasma;e.target.textContent='Fantasma: '+(S.fantasma?'sí':'no');e.target.classList.toggle('on',S.fantasma);pintar();};
 $('#bContorno').onclick=e=>{S.contorno=!S.contorno;e.target.textContent='Contorno: '+(S.contorno?'sí':'no');e.target.classList.toggle('on',S.contorno);pintar();};
 $('#bAnt').onclick=()=>irA(S.actual-1);
