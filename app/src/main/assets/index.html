@@ -428,6 +428,9 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <div class="fila" style="margin:0"><label style="min-width:70px">Velocidad</label><input type="range" id="rVel" min="6" max="16" value="10"><span class="v" id="vVel">1.0</span></div>
     <div class="fila" style="margin:0"><label style="min-width:70px">Tono</label><input type="range" id="rTono" min="6" max="16" value="10"><span class="v" id="vTono">1.0</span></div>
     <button id="bOirVoz">🔊 Escuchar esta voz</button>
+    <div class="ht" style="margin-top:4px">Cerebros de respaldo</div>
+    <div class="nota" style="margin:0">Si el principal falla (saturado, sin cupo, sin internet o clave mala), la app pasa sola al siguiente con clave, en este orden. Toca el nombre para activarlo o desactivarlo.</div>
+    <div id="listaResp"></div>
     <div class="fila" style="margin:0">
       <button id="bProbarIA" style="flex:1">Probar conexión</button>
       <button id="bPreguntarIA" style="flex:1">Preguntarle lo de arriba</button>
@@ -1582,9 +1585,10 @@ setTimeout(aplicarConfigVoz,300);
 /* ---------- Viernes con Claude ---------- */
 const IA={siempre:false,motor:'tablet',key11:'',voz11:'',voz11Nombre:'',modelo11:'eleven_flash_v2_5',estab:.5,expr:.2,estilo:'cercana',vozTts:'',vel:1,tono:1,on:false,prov:'gemini',key:'',modelo:'claude-haiku-5-5',url:'',modeloLibre:'',voz:true,hist:[],pend:{}};
 try{const g=JSON.parse(localStorage.getItem('ia')||'{}');IA.claves=g.claves||{};if(g.key&&!IA.claves[g.prov||'gemini'])IA.claves[g.prov||'gemini']=g.key;
+  IA.respaldos=g.respaldos||{};IA.modelos=g.modelos||{};
   Object.assign(IA,{siempre:!!g.siempre,motor:g.motor||'tablet',key11:g.key11||'',voz11:g.voz11||'',voz11Nombre:g.voz11Nombre||'',modelo11:g.modelo11||'eleven_flash_v2_5',estab:g.estab??.5,expr:g.expr??.2,estilo:g.estilo||'cercana',vozTts:g.vozTts||'',vel:g.vel||1,tono:g.tono||1,on:!!g.on,prov:g.prov||'gemini',key:g.key||'',modelo:g.modelo||IA.modelo,url:g.url||'',modeloLibre:g.modeloLibre||'',voz:g.voz!==false});}catch(_){}
-const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({siempre:IA.siempre,motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
-const iaLista=()=>IA.on&&(IA.prov==='propio'?IA.url.length>8:IA.key.length>15);
+const guardarIA=()=>{try{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;localStorage.setItem('ia',JSON.stringify({respaldos:IA.respaldos||{},modelos:IA.modelos||{},siempre:IA.siempre,motor:IA.motor,key11:IA.key11,voz11:IA.voz11,voz11Nombre:IA.voz11Nombre,modelo11:IA.modelo11,estab:IA.estab,expr:IA.expr,claves:IA.claves,estilo:IA.estilo,vozTts:IA.vozTts,vel:IA.vel,tono:IA.tono,on:IA.on,prov:IA.prov,key:IA.key,modelo:IA.modelo,url:IA.url,modeloLibre:IA.modeloLibre,voz:IA.voz}));}catch(_){}};
+const iaLista=()=>IA.on&&(listoProv(IA.prov)||ORDEN_RESPALDO.some(pv=>(IA.respaldos||{})[pv]!==false&&listoProv(pv)));
 function decir(t){ if(!IA.voz||!t||!window.Android)return;
   if(IA.motor==='eleven'&&IA.key11&&IA.voz11&&Android.hablar11){Android.hablar11(IA.key11,IA.voz11,IA.modelo11,t,IA.estab,IA.expr);return;}
   if(Android.hablar)Android.hablar(t); }
@@ -1649,42 +1653,63 @@ const PROV={
   openrouter:{nombre:'OpenRouter',base:'https://openrouter.ai/api/v1',auto:false,porDefecto:'openrouter/free',
     alternos:['openrouter/free']},
 };
-function elegirModelo(listo){
-  const P=PROV[IA.prov]; if(!P||!P.auto){if(P&&P.porDefecto&&!IA.soloLista){IA.modeloLibre=P.porDefecto;guardarIA();}IA.alternos=(P&&P.alternos)||[];listo(!!IA.modeloLibre);return;}
+// ----- datos por cerebro -----
+const NOMBRE_PROV=pv=>pv==='claude'?'Claude':PROV[pv]?PROV[pv].nombre:'el servidor';
+const claveDe=pv=>pv===IA.prov?IA.key:((IA.claves||{})[pv]||'');
+const modeloDe=pv=>pv===IA.prov?IA.modeloLibre:((IA.modelos||{})[pv]||'');
+function fijarModelo(pv,m){ if(pv===IA.prov)IA.modeloLibre=m; else {IA.modelos=IA.modelos||{};IA.modelos[pv]=m;} guardarIA(); }
+const listoProv=pv=>pv==='propio'?(IA.url||'').length>8:claveDe(pv).length>15;
+const ORDEN_RESPALDO=['gemini','openrouter','groq','claude','propio'];
+function siguienteCerebro(probados){
+  return ORDEN_RESPALDO.find(pv=>!probados.includes(pv)&&pv!==IA.prov&&(IA.respaldos||{})[pv]!==false&&listoProv(pv))||null;
+}
+function elegirModelo(listo,pv=IA.prov,soloLista=false){
+  const P=PROV[pv];
+  if(!P||!P.auto){if(P&&P.porDefecto&&!soloLista&&!modeloDe(pv))fijarModelo(pv,P.porDefecto);IA.alternosDe=IA.alternosDe||{};IA.alternosDe[pv]=(P&&P.alternos)||[];listo(!!modeloDe(pv));return;}
   logD('🧠 buscando el modelo gratis de '+P.nombre+'…');
-  httpIA(P.base+'/models',{'Authorization':'Bearer '+IA.key},null,(cod,txt)=>{
+  httpIA(P.base+'/models',{'Authorization':'Bearer '+claveDe(pv)},null,(cod,txt)=>{
     let ids=[];try{ids=(JSON.parse(txt).data||[]).map(m=>String(m.id).replace(/^models\//,''));}catch(_){}
-    if(cod!==200||!ids.length){logD('🧠 ✖ no pude listar modelos ('+cod+')');listo(false,cod,txt);return;}
+    if(cod!==200||!ids.length){logD('🧠 ✖ no pude listar modelos de '+P.nombre+' ('+cod+')');listo(false,cod,txt);return;}
     const ok=ids.filter(P.filtro).sort(P.orden);
-    IA.alternos=ok.slice();
-    if(!IA.soloLista)IA.modeloLibre=ok[0]||ids[0]||'';guardarIA();
-    logD('🧠 modelo elegido: '+IA.modeloLibre);if($('#txtModelo'))$('#txtModelo').value=IA.modeloLibre;
-    listo(!!IA.modeloLibre);
+    IA.alternosDe=IA.alternosDe||{};IA.alternosDe[pv]=ok.slice();
+    if(!soloLista)fijarModelo(pv,ok[0]||ids[0]||'');
+    logD('🧠 modelo de '+P.nombre+': '+modeloDe(pv));if(pv===IA.prov&&$('#txtModelo'))$('#txtModelo').value=IA.modeloLibre;
+    listo(!!modeloDe(pv));
   });
 }
 const elegirModeloGemini=elegirModelo;
-const esNube=()=>!!PROV[IA.prov];
-const PROV_NOMBRE=()=>IA.prov==='claude'?'Claude':PROV[IA.prov]?PROV[IA.prov].nombre:'el servidor';
+const esNube=(pv=IA.prov)=>!!PROV[pv];
+const PROV_NOMBRE=()=>NOMBRE_PROV(IA.prov);
+function fallarTodo(msg){mostrarVoz(msg,7000);decir(msg);}
 function preguntarClaude(texto,extra={}){
-  if(esNube()&&IA.key&&!IA.modeloLibre){elegirModelo(ok=>{if(ok)preguntarClaude(texto,extra);else{const m='No pude conectar con '+PROV[IA.prov].nombre+', revisa la clave';mostrarVoz(m,4000);decir(m);}});return;}
-  if(!(IA.prov==='propio'?IA.url:IA.key)){mostrarVoz('Falta configurar el cerebro (🎤 › Inteligencia)',4000);decir('Me falta configurar el cerebro');return;}
+  const pv=extra.prov||IA.prov, clave=claveDe(pv);
+  const probados=extra.probados||[];
+  if(!listoProv(pv)){
+    const sig=siguienteCerebro([...probados,pv]);
+    if(sig&&pv===IA.prov){preguntarClaude(texto,{...extra,prov:sig,probados:[...probados,pv]});return;}
+    fallarTodo('Falta configurar el cerebro (🎤 › Inteligencia)');return;}
+  if(esNube(pv)&&!modeloDe(pv)&&!extra.modelo){elegirModelo(ok=>{
+      if(ok)preguntarClaude(texto,extra);
+      else{const sig=siguienteCerebro([...probados,pv]);
+        if(sig){logD('🧠 ⇢ respaldo: '+NOMBRE_PROV(sig));preguntarClaude(texto,{prov:sig,probados:[...probados,pv],t0:extra.t0});}
+        else fallarTodo('No pude conectar con '+NOMBRE_PROV(pv)+', revisa la clave');}},pv);return;}
   const id='c'+(++nPeticion);
-  IA.pend[id]={texto,t0:extra.t0||Date.now(),intentos:extra.intentos||0,modelo:extra.modelo||'',reintento:extra.reintento};
-  mostrarVoz(extra.intentos?'🧠 Reintentando…':'🧠 Pensando…');
+  IA.pend[id]={texto,prov:pv,probados,t0:extra.t0||Date.now(),intentos:extra.intentos||0,modelo:extra.modelo||'',reintento:extra.reintento};
+  mostrarVoz(probados.length?'🧠 Probando con '+NOMBRE_PROV(pv)+'…':extra.intentos?'🧠 Reintentando…':'🧠 Pensando…');
   const mensajes=[...IA.hist.slice(-8),{role:'user',content:`[Estado actual de la app: ${estadoTexto()}]\nBran dijo: "${texto}"`}];
   let url,enc,cuerpo;
-  if(IA.prov==='claude'){url='https://api.anthropic.com/v1/messages';enc={'x-api-key':IA.key,'anthropic-version':'2023-06-01'};
+  if(pv==='claude'){url='https://api.anthropic.com/v1/messages';enc={'x-api-key':clave,'anthropic-version':'2023-06-01'};
     cuerpo={model:IA.modelo,max_tokens:400,temperature:.8,system:sistemaIA(),messages:mensajes};}
-  else{ // formato compatible con OpenAI: Gemini o servidor propio (Ollama, LM Studio...)
-    url=esNube()?PROV[IA.prov].base+'/chat/completions':IA.url.replace(/\/+$/,'')+(/\/chat\/completions$/.test(IA.url)?'':'/v1/chat/completions');
-    enc=IA.key?{'Authorization':'Bearer '+IA.key}:{};
-    if(IA.prov==='openrouter')enc['X-Title']='Stencil Lab';
-    cuerpo={model:extra.modelo||(esNube()?IA.modeloLibre:(IA.modeloLibre||'llama3.1')),max_tokens:400,temperature:.8,
+  else{ // formato compatible con OpenAI: Gemini, Groq, OpenRouter o servidor propio
+    url=esNube(pv)?PROV[pv].base+'/chat/completions':IA.url.replace(/\/+$/,'')+(/\/chat\/completions$/.test(IA.url)?'':'/v1/chat/completions');
+    enc=clave?{'Authorization':'Bearer '+clave}:{};
+    if(pv==='openrouter')enc['X-Title']='Stencil Lab';
+    cuerpo={model:extra.modelo||(esNube(pv)?modeloDe(pv):(IA.modeloLibre||'llama3.1')),max_tokens:400,temperature:.8,
       messages:[{role:'system',content:sistemaIA()},...mensajes]};}
-  const nombre=IA.prov==='claude'?'Claude '+IA.modelo:esNube()?PROV[IA.prov].nombre+' '+cuerpo.model:'servidor '+cuerpo.model;
+  const nombre=pv==='claude'?'Claude '+IA.modelo:esNube(pv)?PROV[pv].nombre+' '+cuerpo.model:'servidor '+cuerpo.model;
   logD('🧠 → '+nombre+': '+texto);
   if(window.Android&&Android.http)Android.http(id,url,JSON.stringify(enc),JSON.stringify(cuerpo));
-  else{if(IA.prov==='claude')enc['anthropic-dangerous-direct-browser-access']='true';
+  else{if(pv==='claude')enc['anthropic-dangerous-direct-browser-access']='true';
     fetch(url,{method:'POST',headers:{'content-type':'application/json',...enc},body:JSON.stringify(cuerpo)})
     .then(async r=>iaRespuesta(id,r.status,await r.text())).catch(e=>iaRespuesta(id,0,JSON.stringify({error:{type:'red',message:String(e)}})));}
 }
@@ -1692,36 +1717,46 @@ window.claudeRespuesta=(...a)=>iaRespuesta(...a);
 window.iaRespuesta=(id,codigo,texto)=>{
   const p=IA.pend[id];delete IA.pend[id];if(!p)return;
   if(p.cb){p.cb(codigo,texto);return;}
+  const pv=p.prov||IA.prov;
   let j=null;try{j=JSON.parse(texto);}catch(_){}
   if(codigo!==200||!j||j.type==='error'||j.error){
     const m=(j&&j.error&&(j.error.message||(typeof j.error==='string'?j.error:'')))||(Array.isArray(j)&&j[0]&&j[0].error&&j[0].error.message)||texto||'';
-    const quien=IA.prov==='claude'?'Claude':esNube()?PROV[IA.prov].nombre:'el servidor';
+    const quien=NOMBRE_PROV(pv);
     const msg=codigo===401||codigo===403?'La clave de '+quien+' no es válida':codigo===429&&/quota|per day|exhausted/i.test(m)?'Se acabó el cupo gratis de hoy en '+quien+', mañana se renueva':codigo===402||/credit|balance/i.test(m)?'No hay saldo en '+quien:
-      codigo===429?(/quota|per day|exhausted/i.test(m)?'Se acabó el cupo gratis de hoy en '+quien:quien+' está recibiendo muchas peticiones, intenta en un momento'):codigo===529||codigo>=500?quien+' está saturado ahora, intenta en un rato':
-      codigo===0?(IA.prov==='propio'?'No pude conectarme al servidor':'No pude conectarme a internet'):codigo===404?'El modelo o la dirección no existe':'Error de '+quien;
-    logD('🧠 ✖ '+codigo+' '+m.slice(0,160));
-    IA.ultimoError=codigo+' '+m.slice(0,120);
-    // saturado o conexión cortada: reintentar solo (y en Gemini, con otro modelo gratis)
+      codigo===429?quien+' está recibiendo muchas peticiones, intenta en un momento':codigo===529||codigo>=500?quien+' está saturado ahora, intenta en un rato':
+      codigo===0?(pv==='propio'?'No pude conectarme al servidor':'No pude conectarme a internet'):codigo===404?'El modelo o la dirección no existe':'Error de '+quien;
+    logD('🧠 ✖ '+quien+' '+codigo+' '+m.slice(0,160));
+    IA.ultimoError=quien+' '+codigo+' '+m.slice(0,120);
+    // 1) modelo que ya no existe: buscar otro del mismo cerebro
+    if(esNube(pv)&&(codigo===404||codigo===400&&/model/i.test(m)||/not found|is not supported|decommissioned/i.test(m))&&!p.reintento){
+      fijarModelo(pv,'');elegirModelo(ok=>{if(ok)preguntarClaude(p.texto,{prov:pv,probados:p.probados,reintento:true,t0:p.t0});else pasarRespaldo();},pv);return;}
+    // 2) saturado o conexión cortada: un par de reintentos rápidos en el mismo cerebro (con otro modelo si hay)
     const pasajero=codigo===0||codigo===503||codigo===529||codigo===500||codigo===502||codigo===504||(codigo===429&&!/quota|per day|exhausted/i.test(m));
-    if(pasajero&&p.intentos<3){
+    const hayRespaldo=!!siguienteCerebro([...p.probados,pv]);
+    const maxInt=hayRespaldo?1:3;
+    if(pasajero&&p.intentos<maxInt){
       const n=p.intentos+1;
       const conAlterno=()=>{let modelo='';
-        if(esNube()&&(codigo===503||codigo===429||codigo===529)&&n>=2){
-          const usado=p.modelo||IA.modeloLibre;const alt=(IA.alternos||[]).filter(x=>x!==usado);modelo=alt[(n-2)%Math.max(1,alt.length)]||'';}
-        if(modelo)logD('🧠 ↻ probando con '+modelo);else logD('🧠 ↻ reintento '+n);
-        setTimeout(()=>preguntarClaude(p.texto,{intentos:n,modelo,t0:p.t0,reintento:p.reintento}),900*n);};
-      if(esNube()&&n>=2&&!(IA.alternos&&IA.alternos.length)){IA.soloLista=true;elegirModelo(()=>{IA.soloLista=false;conAlterno();});}
+        if(esNube(pv)&&(codigo===503||codigo===429||codigo===529)){
+          const usado=p.modelo||modeloDe(pv);const alt=((IA.alternosDe||{})[pv]||[]).filter(x=>x!==usado);modelo=alt[(n-1)%Math.max(1,alt.length)]||'';}
+        logD(modelo?'🧠 ↻ '+quien+' con '+modelo:'🧠 ↻ reintento '+n+' en '+quien);
+        setTimeout(()=>preguntarClaude(p.texto,{prov:pv,probados:p.probados,intentos:n,modelo,t0:p.t0,reintento:p.reintento}),700*n);};
+      if(esNube(pv)&&!((IA.alternosDe||{})[pv]||[]).length&&(codigo===503||codigo===429||codigo===529))elegirModelo(conAlterno,pv,true);
       else conAlterno();
       mostrarVoz('🧠 Reintentando…',3000);return;
     }
-    if(esNube()&&(codigo===404||codigo===400&&/model/i.test(m)||/not found|is not supported|decommissioned/i.test(m))&&!p.reintento){IA.modeloLibre='';elegirModelo(ok=>{if(ok){p.reintento=true;preguntarClaude(p.texto);}else{mostrarVoz(msg,4500);decir(msg);}});return;}
-    mostrarVoz(msg+' ('+codigo+(m?': '+m.slice(0,70):'')+')',7000);decir(msg);return;
+    // 3) pasar al siguiente cerebro de respaldo
+    function pasarRespaldo(){
+      const sig=siguienteCerebro([...p.probados,pv]);
+      if(sig){logD('🧠 ⇢ '+quien+' falló, paso a '+NOMBRE_PROV(sig));preguntarClaude(p.texto,{prov:sig,probados:[...p.probados,pv],t0:p.t0});return;}
+      fallarTodo(msg+(p.probados.length?' (y los respaldos también fallaron)':'')+' ('+codigo+(m?': '+m.slice(0,60):'')+')');
+    }
+    pasarRespaldo();return;
   }
   const crudo=(j.content?(j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join(''):(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'').trim();
   let plan=null;try{const a=crudo.indexOf('{'),b=crudo.lastIndexOf('}');plan=JSON.parse(crudo.slice(a,b+1));}catch(_){}
   if(!plan)plan={acciones:[],respuesta:crudo.replace(/[*#_`]/g,'').slice(0,300)};
   const acciones=Array.isArray(plan.acciones)?plan.acciones.filter(a=>typeof a==='string'):[];
-  // ejecutar: un solo paso de deshacer para todo lo que haga Claude
   const antes=S.capa?fotoEstado():null;let hizo=0;
   for(const a of acciones){
     if(norm(a).trim()==='deshacer'){if(HIST.length){volverEstado(HIST.pop());hizo=-1;}continue;}
@@ -1731,9 +1766,25 @@ window.iaRespuesta=(id,codigo,texto)=>{
   IA.hist.push({role:'user',content:`Bran dijo: "${p.texto}"`},{role:'assistant',content:JSON.stringify({acciones,respuesta:plan.respuesta||''})});
   if(IA.hist.length>16)IA.hist.splice(0,IA.hist.length-16);
   const resp=(plan.respuesta||'Listo').trim();
-  logD('🧠 ← ('+((Date.now()-p.t0)/1000).toFixed(1)+' s) '+resp);
+  logD('🧠 ← '+NOMBRE_PROV(pv)+' ('+((Date.now()-p.t0)/1000).toFixed(1)+' s) '+resp);
   mostrarVoz('💬 '+resp,Math.min(9000,2500+resp.length*60));decir(resp);
 };
+/* ---------- cerebros de respaldo (UI) ---------- */
+function dibujarRespaldos(){
+  const box=$('#listaResp');if(!box)return;box.innerHTML='';
+  const ph={gemini:'Clave de Gemini (AIza...)',openrouter:'Clave de OpenRouter (sk-or-...)',groq:'Clave de Groq (gsk_...)',claude:'Clave de Claude (sk-ant-...)'};
+  for(const pv of ['gemini','openrouter','groq','claude']){
+    if(pv===IA.prov)continue;
+    const f=document.createElement('div');f.className='cmdf';
+    const on=(IA.respaldos||{})[pv]!==false;
+    f.innerHTML=`<div class="r"><button class="tg" style="flex:1;text-align:left">${on?'✅':'⬜'} ${NOMBRE_PROV(pv)}${pv==='claude'?' (de pago)':' (gratis)'}</button><span class="est" style="font-size:12px;color:var(--mut)">${listoProv(pv)?'clave lista':'falta clave'}</span></div>
+      <div class="r"><input type="password" placeholder="${ph[pv]}" autocomplete="off"></div>`;
+    const inp=f.querySelector('input');inp.value=claveDe(pv);
+    inp.oninput=()=>{IA.claves=IA.claves||{};IA.claves[pv]=inp.value.replace(/[\s"']/g,'');guardarIA();f.querySelector('.est').textContent=listoProv(pv)?'clave lista':'falta clave';};
+    f.querySelector('.tg').onclick=()=>{IA.respaldos=IA.respaldos||{};IA.respaldos[pv]=!on;guardarIA();dibujarRespaldos();};
+    box.appendChild(f);
+  }
+}
 function pintarIAUI(){
   $('#bIA').textContent='Usar inteligencia: '+(IA.on?'sí':'no');$('#bIA').classList.toggle('on',IA.on);
   $('#selProv').value=IA.prov;$('#txtUrl').value=IA.url;$('#txtModelo').value=IA.modeloLibre;
@@ -1750,7 +1801,7 @@ function pintarIAUI(){
   $('#bVozResp').textContent='Responder en voz alta: '+(IA.voz?'sí':'no');$('#bVozResp').classList.toggle('on',IA.voz);
   $('#bSiempreIA').textContent='Conversar siempre con la IA: '+(IA.siempre?'sí':'no');$('#bSiempreIA').classList.toggle('on',IA.siempre);
   $('#txtKey').value=IA.key;$('#selModelo').value=IA.modelo;
-  $('#selEstilo').value=IA.estilo;llenarVoces();pintarEleven();$('#rVel').value=Math.round(IA.vel*10);$('#vVel').textContent=(+IA.vel).toFixed(1);$('#rTono').value=Math.round(IA.tono*10);$('#vTono').textContent=(+IA.tono).toFixed(1);
+  $('#selEstilo').value=IA.estilo;llenarVoces();pintarEleven();dibujarRespaldos();$('#rVel').value=Math.round(IA.vel*10);$('#vVel').textContent=(+IA.vel).toFixed(1);$('#rTono').value=Math.round(IA.tono*10);$('#vTono').textContent=(+IA.tono).toFixed(1);
 }
 $('#bIA').onclick=()=>{IA.on=!IA.on;guardarIA();pintarIAUI();if(IA.on&&!IA.key)aviso('Pega tu clave de API de Claude',3000);};
 $('#bSiempreIA').onclick=()=>{IA.siempre=!IA.siempre;guardarIA();pintarIAUI();aviso(IA.siempre?'Todo lo que digas pasa por la IA (un poco más lento)':'Los comandos cortos los hace la app al instante',3500);};
@@ -1758,7 +1809,7 @@ $('#bVozResp').onclick=()=>{IA.voz=!IA.voz;guardarIA();pintarIAUI();decir('Listo
 const limpiarClave=v=>v.replace(/[\s"'“”]/g,'');
 $('#txtKey').oninput=$('#txtKey').onchange=e=>{IA.key=limpiarClave(e.target.value);guardarIA();};
 $('#selModelo').onchange=e=>{IA.modelo=e.target.value;guardarIA();};
-$('#selProv').onchange=e=>{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;IA.prov=e.target.value;IA.key=(IA.claves[IA.prov]||'');IA.hist=[];IA.alternos=null;if(esNube())IA.modeloLibre='';guardarIA();pintarIAUI();};
+$('#selProv').onchange=e=>{IA.claves=IA.claves||{};IA.claves[IA.prov]=IA.key;IA.modelos=IA.modelos||{};IA.modelos[IA.prov]=IA.modeloLibre;IA.prov=e.target.value;IA.key=(IA.claves[IA.prov]||'');IA.modeloLibre=IA.modelos[IA.prov]||'';IA.hist=[];dibujarRespaldos();guardarIA();pintarIAUI();};
 $('#txtUrl').onchange=e=>{IA.url=e.target.value.trim();guardarIA();};
 $('#txtModelo').onchange=e=>{IA.modeloLibre=e.target.value.trim();guardarIA();};
 $('#bProbarIA').onclick=()=>{IA.key=limpiarClave($('#txtKey').value);IA.url=$('#txtUrl').value.trim();IA.modeloLibre=$('#txtModelo').value.trim();guardarIA();
