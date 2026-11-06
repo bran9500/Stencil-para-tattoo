@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Capas</title>
+<title>Stencil Lab</title>
 <style>
 :root{
   --bg:#0e0f11; --panel:#17191c; --panel2:#202328; --line:#2c3036;
@@ -66,19 +66,27 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
   color:var(--mut);font-size:13px;text-align:center}
 .cortes .fila label{min-width:92px}
 .nota{color:var(--mut);font-size:12.5px;margin-top:8px}
-#menuG{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
-#menuG .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
-#menuG .ht{font-weight:600;margin-bottom:2px}
-#menuG button{text-align:left;font-weight:600}
-#menuG small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:2px}
+
+.estf{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.estf+.estf{margin-top:6px}
+.estf input[type=checkbox]{width:20px;height:20px;accent-color:var(--acc)}
+.estf .nm{flex:1;font-size:13.5px}
+.estf .mu{width:46px;height:14px}
+.estf select{background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px;font:inherit;font-size:13px}
+#panel{max-height:52vh;overflow-y:auto}
+#menuG,#menuE{position:absolute;inset:0;background:#0009;display:flex;align-items:flex-end;z-index:5}
+#menuG .hoja,#menuE .hoja{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;display:flex;flex-direction:column;gap:10px}
+#menuG .ht,#menuE .ht{font-weight:600;margin-bottom:2px}
+#menuG button,#menuE button{text-align:left;font-weight:600}
+#menuG small,#menuE small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:2px}
 </style>
 </head>
 <body>
 
 <section id="inicio">
   <div class="logo"><i style="height:44px;background:#e9e4dc"></i><i style="height:44px;background:#a8a49e"></i><i style="height:44px;background:#5f5c58"></i><i style="height:44px;background:#1d1c1b"></i></div>
-  <h1>Capas</h1>
-  <p>Divide un diseño por tonos y tatúalo capa por capa: claras, medias, oscuras.</p>
+  <h1>Stencil Lab</h1>
+  <p>Divide un diseño por tonos y saca un esténcil por capa: puntos, línea intermitente y línea continua para saber dónde va cada sombra.</p>
   <button class="big pri" id="bAbrir">Abrir imagen</button>
   <button class="big" id="bEjemplo">Probar con el cráneo de ejemplo</button>
   <input type="file" id="archivo" accept="image/*" class="hide">
@@ -100,6 +108,7 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       <button data-tab="ver" class="on">Ver capas</button>
       <button data-tab="tonos">Tonos</button>
       <button data-tab="fondo">Fondo</button>
+      <button data-tab="est">Esténcil</button>
     </div>
 
     <div data-pane="ver">
@@ -166,6 +175,33 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
       </div>
       <div class="nota">El fondo se quita desde los bordes. Úsalo solo si el diseño tiene un fondo liso y separado. En bocetos claros sobre papel déjalo en 0, o se borra parte del dibujo. Para huecos encerrados (entre cuernos, dientes…), activa "Tocar huecos" y toca cada uno.</div>
     </div>
+
+    <div data-pane="est" class="hide">
+      <div id="estCapas"></div>
+      <div class="fila">
+        <div class="seg" id="segEstFondo">
+          <button data-v="img" class="on">Sobre la imagen</button>
+          <button data-v="blanco">Solo líneas</button>
+        </div>
+      </div>
+      <div class="fila">
+        <label>Suavizado</label>
+        <input type="range" id="rSuave" min="0" max="8" value="3"><span class="v" id="vSuave">3</span>
+      </div>
+      <div class="fila">
+        <label>Detalle mínimo</label>
+        <input type="range" id="rMin" min="0" max="120" value="40"><span class="v" id="vMin">40</span>
+      </div>
+      <div class="fila">
+        <label>Grosor</label>
+        <input type="range" id="rGrosor" min="1" max="6" value="2"><span class="v" id="vGrosor">2</span>
+      </div>
+      <div class="fila">
+        <button id="bEstColor" style="flex:1" class="on">Colores: sí</button>
+        <button id="bEstGuardar" class="pri" style="flex:1.4">Guardar esténcil</button>
+      </div>
+      <div class="nota">Cada línea marca dónde empieza esa capa hacia lo oscuro. Suavizado quita el ruido; Detalle mínimo borra trazos muy cortos. Al guardar, las líneas salen negras y alineadas con la imagen.</div>
+    </div>
   </div>
 </section>
 
@@ -175,6 +211,15 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
     <button class="big" data-op="1">Capas transparentes<small>Para apilar en Procreate o Ibis Paint</small></button>
     <button class="big" data-op="2">Guías<small>Rosado = sin tinta, gris plano = donde va la capa</small></button>
     <button class="big" data-op="3">Las dos</button>
+  </div>
+</div>
+
+<div id="menuE" class="hide menu">
+  <div class="hoja">
+    <div class="ht">Guardar esténcil</div>
+    <button class="big" data-op="junto">Capas marcadas en una sola hoja<small>Fondo blanco para imprimir + versión transparente</small></button>
+    <button class="big" data-op="separado">Cada capa por separado<small>PNG transparentes alineados, para apilar en Procreate</small></button>
+    <button class="big" data-op="todo">Las dos</button>
   </div>
 </div>
 
@@ -292,7 +337,7 @@ function calcCapas(redibujarCortes=true){
     let b=0; while(b<N-1&&v>=cortes[b])b++;   // b: 0 = más oscuro
     cap[i]=N-1-b;                            // 0 = más clara
   }
-  S.capa=cap;
+  S.capa=cap; S.lineas=null;
   if(S.vis.length!==N){S.vis=Array.from({length:N},(_,i)=>i<=Math.min(S.actual,N-1));}
   S.actual=Math.min(S.actual,N-1);
   // contorno de la silueta
@@ -317,6 +362,7 @@ function grisPlano(k){const [a,b]=rangoCapa(k);return Math.round((a+b-1)/2);}
 /* ---------- pintar ---------- */
 function pintar(){
   if(!S.capa)return;
+  if(S.tab==='est'){pintarEstencil();return;}
   const {W,H,gris,capa,vis,vista,fantasma,contorno,borde,fondo}=S;
   const cv=$('#cv'),x=cv.getContext('2d'),im=x.createImageData(W,H),d=im.data;
   const plano=S.vis.map((_,k)=>grisPlano(k));
@@ -384,6 +430,7 @@ function reprocesar(){clearTimeout(tReproc);tReproc=setTimeout(()=>{calcCapas(fa
 function ocupado(fn){$('#cargando').classList.remove('hide');setTimeout(()=>{try{fn();}finally{$('#cargando').classList.add('hide');}},30);}
 
 $$('.tabs button').forEach(b=>b.onclick=()=>{
+  S.tab=b.dataset.tab; if(S.tab==='est')dibujarEstCapas(); setTimeout(pintar,0);
   $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
   $$('[data-pane]').forEach(p=>p.classList.toggle('hide',p.dataset.pane!==b.dataset.tab));
   if(b.dataset.tab!=='fondo'&&S.tocar)modoTocar(false);
@@ -453,6 +500,158 @@ function aplicarVista(){$('#cv').style.transform=`translate(${V.x}px,${V.y}px) s
   new ResizeObserver(()=>{const r=L.getBoundingClientRect(),t=r.width+'x'+r.height;
     if(S.W&&t!==ultTam&&r.height>0){ultTam=t;ajustarVista();}}).observe(L);
 })();
+
+
+/* ---------- esténcil ---------- */
+const COLORES=['#2f8fd6','#1fa36a','#d68a1f','#d0405c','#8a4fd0','#333333'];
+S.tab='ver'; S.lineas=null; S.estFondo='img'; S.suave=3; S.minLen=40; S.grosor=2; S.estColor=true;
+S.estilos=null; S.estIncl=null;
+function estilosPorDefecto(N){ // 0 = más clara
+  return Array.from({length:N},(_,k)=>k===N-1?'continua':k===N-2?'intermitente':'puntos');
+}
+function asegurarEst(){
+  if(!S.estilos||S.estilos.length!==S.N){S.estilos=estilosPorDefecto(S.N);S.estIncl=Array(S.N).fill(true);}
+}
+function dibujarEstCapas(){
+  asegurarEst();
+  const box=$('#estCapas');box.innerHTML='';const nom=nombresCapas(S.N);
+  for(let k=0;k<S.N;k++){
+    const f=document.createElement('div');f.className='estf';
+    f.innerHTML=`<input type="checkbox" ${S.estIncl[k]?'checked':''}>
+      <svg class="mu" viewBox="0 0 46 14"><line x1="3" y1="7" x2="43" y2="7" stroke="${S.estColor?COLORES[k%6]:'#ddd'}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${dashSvg(S.estilos[k])}"/></svg>
+      <span class="nm">${k+1} · ${nom[k]}</span>
+      <select><option value="puntos">Puntos</option><option value="intermitente">Intermitente</option><option value="continua">Continua</option></select>`;
+    const cb=f.querySelector('input'),sel=f.querySelector('select');sel.value=S.estilos[k];
+    cb.onchange=()=>{S.estIncl[k]=cb.checked;pintar();};
+    sel.onchange=()=>{S.estilos[k]=sel.value;dibujarEstCapas();pintar();};
+    box.appendChild(f);
+  }
+}
+function dashSvg(e){return e==='puntos'?'0.1 6':e==='intermitente'?'7 5':'none';}
+
+// Líneas de nivel (marching squares) sobre la imagen reducida y suavizada.
+function calcLineas(){
+  const MAX=1100,k=Math.min(1,MAX/Math.max(S.W,S.H));
+  const w=Math.max(2,Math.round(S.W*k)),h=Math.max(2,Math.round(S.H*k));
+  const g=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){const sy=Math.min(S.H-1,Math.floor(y/k));
+    for(let x=0;x<w;x++){const sx=Math.min(S.W-1,Math.floor(x/k)),si=sy*S.W+sx;
+      g[y*w+x]=S.fondo[si]?255:S.gris[si];}}
+  const f=S.suave>0?desenfocar(g,w,h,S.suave):g;
+  // campo con borde de 1 px en blanco para que las líneas cierren
+  const W2=w+2,H2=h+2,F=new Float32Array(W2*H2).fill(255);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)F[(y+1)*W2+x+1]=f[y*w+x];
+  const minLen=S.minLen*k, out=[];
+  for(let c=0;c<S.N;c++){
+    const nivel=rangoCapa(c)[1]-0.5;
+    out.push(isolineas(F,W2,H2,nivel).filter(pl=>largo(pl)>=minLen).map(pl=>suavizarPl(pl.map(([x,y])=>[(x-1)/k,(y-1)/k]))));
+  }
+  S.lineas=out;
+}
+function isolineas(F,w,h,L){
+  const pts=new Map(),segs=[];
+  const hE=(x,y)=>(y*w+x)*2, vE=(x,y)=>(y*w+x)*2+1;
+  function P(id){ if(pts.has(id))return id;
+    const c=id>>1,x=c%w,y=(c-x)/w;
+    if(id&1){const a=F[y*w+x],b=F[(y+1)*w+x],t=(L-a)/(b-a);pts.set(id,[x,y+t]);}
+    else{const a=F[y*w+x],b=F[y*w+x+1],t=(L-a)/(b-a);pts.set(id,[x+t,y]);}
+    return id;}
+  for(let y=0;y<h-1;y++)for(let x=0;x<w-1;x++){
+    const a=F[y*w+x],b=F[y*w+x+1],c=F[(y+1)*w+x+1],d=F[(y+1)*w+x];
+    const i=(a<L?1:0)|(b<L?2:0)|(c<L?4:0)|(d<L?8:0);
+    if(i===0||i===15)continue;
+    const T=hE(x,y),Rr=vE(x+1,y),B=hE(x,y+1),Lf=vE(x,y);
+    const add=(e1,e2)=>segs.push([P(e1),P(e2)]);
+    switch(i){
+      case 1:case 14:add(Lf,T);break;
+      case 2:case 13:add(T,Rr);break;
+      case 3:case 12:add(Lf,Rr);break;
+      case 4:case 11:add(Rr,B);break;
+      case 6:case 9:add(T,B);break;
+      case 7:case 8:add(Lf,B);break;
+      case 5:{const m=(a+b+c+d)/4; if(m<L){add(Lf,B);add(T,Rr);}else{add(Lf,T);add(Rr,B);}break;}
+      case 10:{const m=(a+b+c+d)/4; if(m<L){add(Lf,T);add(Rr,B);}else{add(T,Rr);add(Lf,B);}break;}
+    }
+  }
+  // unir segmentos en líneas
+  const ady=new Map();
+  segs.forEach((s,i)=>{for(const e of s){const l=ady.get(e);if(l)l.push(i);else ady.set(e,[i]);}});
+  const usado=new Uint8Array(segs.length),res=[];
+  for(let i=0;i<segs.length;i++){ if(usado[i])continue; usado[i]=1;
+    const cad=[segs[i][0],segs[i][1]];
+    for(const dir of [1,0]){ // extender por la cola y luego por la cabeza
+      while(true){const e=dir?cad[cad.length-1]:cad[0];
+        const sig=(ady.get(e)||[]).find(j=>!usado[j]); if(sig===undefined)break;
+        usado[sig]=1;const o=segs[sig][0]===e?segs[sig][1]:segs[sig][0];
+        if(dir)cad.push(o);else cad.unshift(o);}
+    }
+    res.push(cad.map(id=>pts.get(id)));
+  }
+  return res;
+}
+function largo(pl){let s=0;for(let i=1;i<pl.length;i++)s+=Math.hypot(pl[i][0]-pl[i-1][0],pl[i][1]-pl[i-1][1]);return s;}
+function suavizarPl(pl){ // Chaikin, una pasada
+  if(pl.length<3)return pl;
+  const cerr=Math.hypot(pl[0][0]-pl[pl.length-1][0],pl[0][1]-pl[pl.length-1][1])<1e-6,o=cerr?[]:[pl[0]];
+  for(let i=0;i<pl.length-1;i++){const [ax,ay]=pl[i],[bx,by]=pl[i+1];
+    o.push([ax*.75+bx*.25,ay*.75+by*.25],[ax*.25+bx*.75,ay*.25+by*.75]);}
+  if(cerr)o.push(o[0]);else o.push(pl[pl.length-1]);
+  return o;
+}
+function trazar(ctx,escala,negro){
+  asegurarEst(); if(!S.lineas)calcLineas();
+  const lw=Math.max(1,S.grosor*Math.max(S.W,S.H)/1400)*escala;
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(let c=0;c<S.N;c++){ if(!S.estIncl[c])continue;
+    const e=S.estilos[c];
+    ctx.strokeStyle=negro?'#000':(S.estColor?COLORES[c%6]:'#000');
+    ctx.lineWidth=e==='puntos'?lw*1.6:lw;
+    ctx.setLineDash(e==='puntos'?[0.01,lw*4.2]:e==='intermitente'?[lw*5,lw*3.5]:[]);
+    ctx.beginPath();
+    for(const pl of S.lineas[c]){ctx.moveTo(pl[0][0]*escala,pl[0][1]*escala);
+      for(let i=1;i<pl.length;i++)ctx.lineTo(pl[i][0]*escala,pl[i][1]*escala);}
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+function pintarEstencil(){
+  if($('#estCapas').children.length!==S.N)dibujarEstCapas();
+  const cv=$('#cv'),x=cv.getContext('2d'),{W,H,gris}=S;
+  const im=x.createImageData(W,H),d=im.data;
+  for(let i=0,j=0;i<gris.length;i++,j+=4){
+    const v=S.estFondo==='img'?255-(255-gris[i])*.35:255; d[j]=d[j+1]=d[j+2]=v; d[j+3]=255;}
+  x.putImageData(im,0,0);
+  trazar(x,1,false);
+}
+let tEst=0;
+function reEst(){clearTimeout(tEst);tEst=setTimeout(()=>{S.lineas=null;ocupado(pintar);},120);}
+seg('#segEstFondo',v=>{S.estFondo=v;pintar();});
+$('#rSuave').oninput=e=>{S.suave=+e.target.value;$('#vSuave').textContent=S.suave;reEst();};
+$('#rMin').oninput=e=>{S.minLen=+e.target.value;$('#vMin').textContent=S.minLen;reEst();};
+$('#rGrosor').oninput=e=>{S.grosor=+e.target.value;$('#vGrosor').textContent=S.grosor;pintar();};
+$('#bEstColor').onclick=e=>{S.estColor=!S.estColor;e.target.textContent='Colores: '+(S.estColor?'sí':'no');e.target.classList.toggle('on',S.estColor);dibujarEstCapas();pintar();};
+$('#bEstGuardar').onclick=()=>$('#menuE').classList.remove('hide');
+$('#menuE').onclick=e=>{ if(e.target.id==='menuE')$('#menuE').classList.add('hide'); };
+$$('#menuE [data-op]').forEach(b=>b.onclick=()=>{$('#menuE').classList.add('hide');guardarEstencil(b.dataset.op);});
+function lienzoEstencil(soloCapa,fondoBlanco){
+  asegurarEst();
+  const c=document.createElement('canvas');c.width=S.W;c.height=S.H;const x=c.getContext('2d');
+  if(fondoBlanco){x.fillStyle='#fff';x.fillRect(0,0,S.W,S.H);}
+  const incl=S.estIncl.slice();
+  if(soloCapa>=0)S.estIncl=S.estIncl.map((_,k)=>k===soloCapa);
+  trazar(x,1,true); S.estIncl=incl; return c;
+}
+function guardarEstencil(op){
+  ocupado(()=>{const nom=nombresCapas(S.N);let n=0;
+    const sel=S.estIncl.map((v,k)=>v?k+1:0).filter(Boolean).join('-');
+    if(op==='junto'||op==='todo'){
+      guardar(`${S.nombre}_estencil_capas${sel}.png`,lienzoEstencil(-1,true));n++;
+      guardar(`${S.nombre}_estencil_capas${sel}_transparente.png`,lienzoEstencil(-1,false));n++;}
+    if(op==='separado'||op==='todo'){
+      for(let k=0;k<S.N;k++){ if(!S.estIncl[k])continue;
+        guardar(`${S.nombre}_estencil_capa${k+1}_${nom[k].replace(/ /g,'-')}.png`,lienzoEstencil(k,false));n++;}}
+    aviso(`${n} esténciles guardados en Galería › Capas`,3500);});
+}
 
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');

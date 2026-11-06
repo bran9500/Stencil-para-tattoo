@@ -1,8 +1,8 @@
-name: Compilar APK
+name: Compilar Stencil Lab
 
 on:
   push:
-    branches: [ main ]
+    branches: [ stencil-lab ]
   workflow_dispatch:
 
 permissions:
@@ -27,16 +27,18 @@ jobs:
         run: gradle assembleDebug --no-daemon
 
       - name: Renombrar APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk CapasStencil.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk StencilLab.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CapasStencil-apk
-          path: CapasStencil.apk
+          name: StencilLab-apk
+          path: StencilLab.apk
 
       - name: Publicar en Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.${{ github.run_number }}
-          name: Capas Stencil v1.${{ github.run_number }}
-          files: CapasStencil.apk
+          tag_name: lab-v0.${{ github.run_number }}
+          name: Stencil Lab v0.${{ github.run_number }} (experimental)
+          prerelease: true
+          target_commitish: stencil-lab
+          files: StencilLab.apk
