@@ -1873,7 +1873,7 @@ $('#txtModelo').onchange=e=>{IA.modeloLibre=e.target.value.trim();guardarIA();};
 $('#bProbarIA').onclick=()=>{IA.key=limpiarClave($('#txtKey').value);IA.url=$('#txtUrl').value.trim();IA.modeloLibre=$('#txtModelo').value.trim();guardarIA();
   if(IA.prov==='propio'?!IA.url:!IA.key){aviso(IA.prov==='propio'?'Primero pon la dirección del servidor':'Primero pega la clave',2500);return;}
   const pref={gemini:'AIza',groq:'gsk_',openrouter:'sk-or-',claude:'sk-ant-'}[IA.prov];
-  if(pref&&!IA.key.startsWith(pref)){aviso('Ojo: esa clave no parece de '+PROV_NOMBRE()+' (debería empezar con '+pref+')',4500);}
+  if(pref&&tipoClave(IA.key)!==IA.prov){aviso('Ojo: esa clave no parece de '+PROV_NOMBRE()+' (debería empezar con '+pref+')',4500);}
   $('#menuV').classList.add('hide');preguntarClaude('Hola, preséntate en una frase y dime que ya estás conectada.');};
 $('#bPreguntarIA').onclick=()=>{const t=$('#txtProbar').value.trim();if(!t)return;$('#menuV').classList.add('hide');preguntarClaude(t);};
 
@@ -1947,7 +1947,7 @@ function cargarVoces11(){
 /* ---------- reconocer claves y probarlas ---------- */
 function claveRara(k){return /[^\x21-\x7e]/.test(k||'')||/•|\*{3,}|\.{3,}|…/.test(k||'');}
 function avisarRara(k,nom){ if(claveRara(k)){aviso('Esa clave de '+nom+' tiene puntitos o caracteres raros: se copió oculta. Crea una nueva y usa el botón de copiar.',6000);return true;} return false; }
-function tipoClave(k){k=k||'';return k.startsWith('AIza')?'gemini':k.startsWith('sk-or-')?'openrouter':k.startsWith('gsk_')?'groq':k.startsWith('sk-ant-')?'claude':/^sk_[a-z0-9]/i.test(k)?'eleven':'';}
+function tipoClave(k){k=k||'';return (k.startsWith('AIza')||k.startsWith('AQ.'))?'gemini':k.startsWith('sk-or-')?'openrouter':k.startsWith('gsk_')?'groq':k.startsWith('sk-ant-')?'claude':/^sk_[a-z0-9]/i.test(k)?'eleven':'';}
 function ubicarClave(k,donde){ // guarda la clave en el cerebro que le corresponde; devuelve true si la movió
   const t=tipoClave(k);if(!t||t===donde)return false;
   if(t==='eleven'){IA.key11=k;}
