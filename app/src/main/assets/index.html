@@ -382,8 +382,20 @@ body.inmersivo #bPantalla{opacity:.55}
       <p><b>Esténcil por capas</b> · líneas · las líneas · solo líneas · vista esténcil</p>
       <p><b>Fantasma</b> · fantasma sí · pon el fantasma · quita el fantasma · transparente</p>
       <p><b>Contorno</b> · contorno sí · quita el contorno · borde · silueta</p>
+      <p><b>Vista + capa en una frase</b> · ponlo en real y deja solo la capa 3 · real con una capa <span>(una capa = la capa en la que vas)</span></p>
+      <h4>Esténcil (ajustes)</h4>
+      <p><b>Ir</b> · pásate al esténcil · muévete al stencil · ve al esténcil · ajustes del esténcil <span>(desde el esténcil, "ponlo en real" te devuelve a Ver capas)</span></p>
+      <p><b>Capas</b> · déjame ver la capa 4 · solo la 2 y 3 · quita la 1 · pon la 4</p>
+      <p><b>Grosor de capa</b> · súbele el grosor a la capa 4 · capa 2 más gruesa · más delgada · grosor de la capa 3 a 5 <span>(sin número de capa: las capas visibles)</span></p>
+      <p><b>Estilo</b> · capa 1 en puntos · capa 3 intermitente / rayas · línea fina · continua · relleno</p>
+      <p><b>Fondo</b> · solo líneas · fondo blanco · quita la imagen · sobre la imagen · con la imagen</p>
+      <p><b>Líneas del dibujo</b> · quita las líneas · pon las líneas · solo las sombras · líneas más delgadas · líneas más gruesas · grosor de las líneas a 2</p>
+      <p><b>Opacidad</b> · líneas más suaves · más transparentes · más fuertes · opacidad al 50</p>
+      <p><b>Gemini</b> · grosor Gemini a 1 · rellenos Gemini sí / no · líneas de la app · líneas de Gemini · ambas</p>
+      <p><b>Tinta</b> · tinta roja · ponlo en negro · morado · por capa</p>
+      <p><b>Otros</b> · sensibilidad más / menos / a 25 · suavizado · detalle mínimo · lápiz · borrador · modo mover · guarda el esténcil</p>
       <h4>App</h4>
-      <p><b>Pestañas</b> · ver capas · modo capas · ver esténcil · abre esténcil</p>
+      <p><b>Pestañas</b> · ver capas · ve a capas · pásate al esténcil · ve a tonos · pestaña fondo</p>
       <p><b>Deshacer</b> · vuelve a la configuración anterior · deshaz · cancela · eso no · me equivoqué · como estaba · no era eso <span>(repítelo para seguir retrocediendo)</span></p>
       <p><b>Ayuda</b> · ayuda · comandos · qué puedo decir · lista de comandos</p>
       <p><b>Conversar</b> · di solo <b>viernes</b> y queda escuchándote: ya no tienes que repetir su nombre</p>
@@ -1368,7 +1380,24 @@ function buscarMio(t){
 }
 const HIST=[];
 function fotoEstado(){return {vis:S.vis.slice(),actual:S.actual,vista:S.vista,fantasma:S.fantasma,contorno:S.contorno,
-  V:{x:V.x,y:V.y,s:V.s},est:S.estIncl?S.estIncl.slice():null,tab:S.tab,grid:!$('#grid').classList.contains('hide')};}
+  V:{x:V.x,y:V.y,s:V.s},est:S.estIncl?S.estIncl.slice():null,tab:S.tab,grid:!$('#grid').classList.contains('hide'),
+  aj:{estGros:S.estGros?S.estGros.slice():null,estilos:S.estilos?S.estilos.slice():null,estFondo:S.estFondo,tinta:S.tinta,conLineas:S.conLineas,fuente:S.fuente,
+    sens:S.sens,suave:S.suave,zona:S.zona,minLen:S.minLen,grosor:S.grosor,opLineas:S.opLineas,gemGros:S.gemGros,gemRelleno:S.gemRelleno}};}
+function volverAjustes(a){ if(!a)return;
+  const reTr=a.sens!==S.sens||a.minLen!==S.minLen||a.grosor!==S.grosor, reL=reTr||a.suave!==S.suave||a.zona!==S.zona;
+  if(a.estGros)S.estGros=a.estGros.slice(); if(a.estilos)S.estilos=a.estilos.slice();
+  Object.assign(S,{estFondo:a.estFondo,tinta:a.tinta,conLineas:a.conLineas,sens:a.sens,suave:a.suave,zona:a.zona,minLen:a.minLen,grosor:a.grosor,opLineas:a.opLineas});
+  if(a.fuente!==S.fuente){S.fuente=a.fuente;S.lineasCv=null;}
+  if(a.gemGros!==S.gemGros){S.gemGros=a.gemGros;S.gemCache=null;}
+  if(a.gemRelleno!==S.gemRelleno)ponerRellGem(a.gemRelleno);
+  const put=(id,v,vid,txt)=>{$(id).value=v;if(vid)$(vid).textContent=txt??v;};
+  put('#rSens',S.sens,'#vSens');put('#rSuave',S.suave,'#vSuave');put('#rZona',S.zona,'#vZona');put('#rMin',S.minLen,'#vMin');put('#rGrosor',S.grosor,'#vGrosor');
+  put('#rOpLin',Math.round(S.opLineas*100),'#vOpLin',Math.round(S.opLineas*100)+'%');put('#rGemGros',S.gemGros||9,'#vGemGros',S.gemGros||'orig');
+  $('#cLineas').checked=S.conLineas;
+  const on=(id,v)=>$$(id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  on('#segEstFondo',S.estFondo);on('#segTinta',S.tinta);on('#segFuente',S.fuente);
+  if(reL)S.lineas=null; if(reTr){S.trazos=null;S.gemCache=null;}
+}
 function volverEstado(f){
   if(f.tab!==S.tab)$(`[data-tab=${f.tab}]`).click();
   S.vis=f.vis.slice();S.actual=f.actual;if(f.est)S.estIncl=f.est.slice();
@@ -1376,6 +1405,7 @@ function volverEstado(f){
   S.fantasma=f.fantasma;$('#bFantasma').textContent='Fantasma: '+(S.fantasma?'sí':'no');$('#bFantasma').classList.toggle('on',S.fantasma);
   S.contorno=f.contorno;$('#bContorno').textContent='Contorno: '+(S.contorno?'sí':'no');$('#bContorno').classList.toggle('on',S.contorno);
   $('#grid').classList.toggle('hide',!f.grid);
+  volverAjustes(f.aj);
   if(S.tab==='est')dibujarEstCapas();
   animarVista(f.V.x,f.V.y,f.V.s);pintar();
 }
@@ -1486,7 +1516,9 @@ function listaPal(txt){const ns=(txt.match(/\d+/g)||[]).map(nPal);return ns.leng
 let ultimaFrase='';
 function elegir(arr){const ops=arr.filter(x=>x!==ultimaFrase);const f=(ops.length?ops:arr)[Math.floor(Math.random()*(ops.length||arr.length))];ultimaFrase=f;return f;}
 function paraDecir(r){
-  r=r.replace(/.*→ /,'');const e=IA.estilo||'cercana';
+  r=r.replace(/.*→ /,'');
+  if(r.includes(' + '))return r.split(' + ').map(paraDecir).filter(Boolean).join(' ');
+  const e=IA.estilo||'cercana';
   if(e==='breve')return r.replace(/·/g,',');
   const V=(c,el,pr)=>e==='elocuente'?el:e==='profesional'?pr:c;
   let m;
@@ -1509,6 +1541,15 @@ function paraDecir(r){
   if(/^Pantalla completa/.test(r))return elegir(V(['Listo, toda la pantalla para el diseño.','Ahí tienes la pantalla limpia.'],['Perfecto, escondí los controles para que veas el diseño completo.'],['Pantalla completa.']));
   if(/^Botones visibles/.test(r))return elegir(V(['Ahí están los botones.','Listo, volvieron los controles.'],['Volví a mostrar los controles.'],['Controles visibles.']));
   if(/^En pausa/.test(r))return '';
+  if(r==='Esténcil')return elegir(V(['Listo, estamos en el esténcil.','Ahí tienes los ajustes del esténcil.','Pasamos al esténcil, dale.'],['Perfecto, ya estamos en los ajustes del esténcil.','Listo, abrí el esténcil; dime qué ajustamos.'],['Esténcil.']));
+  if((m=r.match(/^Grosor capas? (.*): (.*)$/))){const una=!/,| y /.test(m[1]);return elegir(V([`Listo, la ${listaPal(m[1])} quedó en grosor ${m[2]}.`,`Hecho, grosor ${m[2]} para la ${listaPal(m[1])}.`],[`Perfecto, ajusté el grosor de la ${listaPal(m[1])}: ${m[2]}.`],[`Grosor ${m[2]}.`]));}
+  if((m=r.match(/^Estilo capas? (.*): (.*)$/)))return elegir(V([`Listo, la ${listaPal(m[1])} ahora va en ${m[2]}.`,`Hecho, ${m[2]} para la ${listaPal(m[1])}.`],[`Perfecto, la ${listaPal(m[1])} quedó con trazo de ${m[2]}.`],[`${cap1(m[2])}.`]));
+  if(r==='Ver capas')return elegir(V(['Listo, volvimos a las capas.','Ahí están las capas.'],['Perfecto, regresamos a Ver capas.'],['Ver capas.']));
+  if((m=r.match(/^Líneas del dibujo: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, volvieron las líneas.','Ahí están las líneas del dibujo.'],['Perfecto, volví a mostrar las líneas del dibujo.'],['Líneas visibles.'])):elegir(V(['Listo, quité las líneas; quedan las sombras.','Fuera las líneas, solo sombras.'],['Oculté las líneas del dibujo para que veas solo las sombras.'],['Líneas ocultas.']));
+  if((m=r.match(/^Opacidad líneas (\d+)%$/)))return elegir(V([`Listo, líneas al ${m[1]} por ciento.`,`Ahí las dejé al ${m[1]} por ciento.`],[`Perfecto, las líneas quedaron al ${m[1]} por ciento de opacidad.`],[`Opacidad ${m[1]} por ciento.`]));
+  if((m=r.match(/^Tinta: (.*)$/)))return elegir(V([`Listo, tinta ${m[1]}.`,`Ahí está en ${m[1]}.`],[`Perfecto, cambié la tinta a ${m[1]}.`],[`Tinta ${m[1]}.`]));
+  if(r==='Solo líneas')return elegir(V(['Listo, te dejo solo las líneas.','Ahí está el esténcil limpio, sin la imagen.'],['Perfecto, quité la imagen de fondo para que veas solo el esténcil.'],['Solo líneas.']));
+  if(r==='Sobre la imagen')return elegir(V(['Listo, el esténcil va encima de la imagen.','Ahí te puse la imagen debajo.'],['Perfecto, volví a poner la imagen debajo del esténcil.'],['Sobre la imagen.']));
   if(/^Imagen completa/.test(r))return elegir(V(['Ahí está el diseño completo.','Listo, todo a la vista.'],['Perfecto, volví a la vista completa del diseño.'],['Vista completa.']));
   if((m=r.match(/^Vista: (.*)$/)))return elegir(V([`Listo, vista ${m[1].toLowerCase()}.`,`Te puse la vista ${m[1].toLowerCase()}.`],[`Cambié a la vista ${m[1].toLowerCase()}.`],[`Vista ${m[1].toLowerCase()}.`]));
   if(/^Deshecho/.test(r))return elegir(V(['Listo, lo devolví como estaba.','Ya, quedó como antes.','Perdón, ya lo regresé.'],['Disculpa, ya lo dejé como estaba.','Listo, deshice el último cambio.'],['Cambio deshecho.']));
@@ -1518,8 +1559,128 @@ function paraDecir(r){
 function numeros(t){const out=[];for(const w of t.trim().split(' ')){if(/^\d+$/.test(w))out.push(+w);else if(NUM[w])out.push(NUM[w]);else if(w==='ultima'||w==='ultimo')out.push(S.N);}
   return out.filter(n=>n>=1&&n<=S.N);}
 const tiene=(t,...ws)=>ws.some(w=>t.includes(' '+w+' '));
+/* ---------- voz para la pestaña Esténcil ---------- */
+const N_EXT={...NUM,siete:7,ocho:8,nueve:9,diez:10,once:11,doce:12,quince:15,veinte:20,veinticinco:25,treinta:30,cuarenta:40,cincuenta:50,sesenta:60,setenta:70,ochenta:80,noventa:90,cien:100};
+const numTok=w=>/^\d+$/.test(w)?+w:(N_EXT[w]??null);
+const RX_EST=/ (?:e|es|ex|s)? ?t[ae]n[cs]ill?(?:es|s)? | esencial /;
+function capasDe(t){ // números que van con la palabra "capa"
+  const w=t.trim().split(' '),out=[];let en=false;
+  for(const x of w){ if(x==='capa'||x==='capas'){en=true;continue;}
+    if(!en)continue; const n=numTok(x);
+    if(n!=null&&n<=9){out.push(n);continue;}
+    if(x==='ultima'||x==='ultimo'){out.push(S.N);continue;}
+    if(['y','e','la','las','el','numero','de'].includes(x))continue; en=false;}
+  return out.filter(n=>n>=1&&n<=S.N);
+}
+function valorDe(t,cl){ // número que sigue a una palabra clave: "grosor 5", "a 5", "al 50"
+  const w=t.trim().split(' ');
+  for(let i=0;i<w.length-1;i++)if(cl.includes(w[i])&&!(i>0&&(w[i-1]==='capa'||w[i-1]==='capas'))){
+    let j=i+1;if(['el','la','un','nivel','grosor','numero'].includes(w[j])&&j+1<w.length)j++;
+    const n=numTok(w[j]);if(n!=null)return n;}
+  return null;
+}
+function ponerRango(id,v){const r=$(id);v=Math.max(+r.min,Math.min(+r.max,Math.round(v)));r.value=v;r.dispatchEvent(new Event('input',{bubbles:true}));return v;}
+function marcarSeg(id,v){const b=$(`${id} [data-v=${v}]`);if(b)b.click();}
+const ESTILO_NOM={fina:'línea fina',puntos:'puntos',intermitente:'intermitente',continua:'continua',relleno:'relleno'};
+function vozEstencil(t,h){
+  const has=(...ws)=>tiene(t,...ws), pre=(...ps)=>new RegExp(' ('+ps.join('|')+')[a-z]*').test(t);
+  const esE=RX_EST.test(t);
+  const navegar=pre('ve ','vete','pas','muev','cambi','abr','entr','llev','vam','ir ')||has('ve','ir','pestana','ajustes','a la de','a la pestana');
+  // --- pestañas ---
+  if(esE&&has('vista','en vista','modo vista','como estencil','como stencil')&&!has('ajustes','pestana')){
+    if(S.tab!=='ver')$('[data-tab=ver]').click();
+    $('#segVista [data-v=est]').click();S.vista='est';h.push('Vista: Esténcil');return null;}
+  if(esE&&S.tab!=='est'){$('[data-tab=est]').click();h.push('Esténcil');}
+  if(!esE&&has('tonos')&&navegar){$('[data-tab=tonos]').click();return 'Tonos';}
+  if(!esE&&has('pestana fondo','pestana de fondo','pestana del fondo','al fondo','a fondo','ajustes de fondo','ajustes del fondo','a la de fondo','quitar fondo','quitar el fondo')){$('[data-tab=fondo]').click();return 'Fondo';}
+  if(S.tab!=='est')return null;
+  asegurarEst();
+  // en el esténcil, pedir una vista de Ver capas (real, gris, guía, original) te lleva a Ver capas
+  if(!esE&&has('real','reales','tonos reales','vista real','sombreado','gris plano','grises planos','vista gris','guia','la guia','rosado','original','imagen original','la foto','ver capas','las capas normales')&&!has('grosor','gemini','geminis')){
+    $('[data-tab=ver]').click();return null;}
+  const capas=capasDe(t);
+  const objetivo=()=>{if(capas.length)return capas.map(n=>n-1);const v=S.estIncl.map((x,k)=>x?k:-1).filter(k=>k>=0);return v.length?v:S.estIncl.map((_,k)=>k);};
+  const listaC=ks=>(ks.length===1?'capa ':'capas ')+ks.map(k=>k+1).join(', ').replace(/, (\d+)$/,' y $1');
+  const mucho=has('mucho','bastante','harto','full','arto');
+  const fino=has('delgado','delgada','delgadas','delgados','fino','fina','finas','finos','finito','finita','finitas','flaco','flaca','suave','suaves','tenue','tenues','delicado','delicada','delicadas','transparente','transparentes','clara','claras','clarito','claritas');
+  const grueso=has('grueso','gruesa','gruesas','gruesos','gordo','gorda','gordas','ancho','ancha','anchas','marcado','marcada','marcadas','fuerte','fuertes','oscuras','oscura','visibles','opaca','opacas');
+  const baja=pre('baj','reduc','disminu','adelgaz','achic','afin','rebaj','quit')||has('menos');
+  const sube=pre('aument','sub','agrand','engros','engrues','increment','sum')||has('mas');
+  const dir=(fino?-1:grueso?1:baja?-1:sube?1:0)*(mucho?2:1);
+  const si=pre('muestr','mostr','pon','prend','activ','agreg','anad','encend','enciend','habilit')||has('si','con','dejame ver','deja ver');
+  const no=pre('quit','saca','ocult','escond','apag','desactiv','retir')||has('no','sin','fuera');
+  const vis=()=>{ // "déjame ver la capa 4 y súbele el grosor": también deja visibles esas capas
+    if(!capas.length)return;
+    if(has('solo','solamente','unicamente','nada mas','dejame ver','deja ver','ver la','ver las','ver solo','ensename','muestrame'))S.estIncl=S.estIncl.map((_,k)=>capas.includes(k+1));
+    else capas.forEach(n=>S.estIncl[n-1]=true);};
+  const fin=msg=>{dibujarEstCapas();pintar();return msg;};
+  // --- rellenos de Gemini ---
+  if(has('relleno','rellenos','rellenas')&&has('gemini','geminis')){if(!S.gem)return 'Primero importa las líneas de Gemini';
+    ponerRellGem(no?false:si?true:!S.gemRelleno);ocupado(pintar);return 'Rellenos Gemini: '+(S.gemRelleno?'sí':'no');}
+  // --- opacidad de las líneas del dibujo ---
+  if(has('opacidad','opaca','opacas','transparencia','transparente','transparentes','intensidad','tenue','tenues')||(has('lineas','linea','dibujo')&&has('mas suave','mas suaves','mas claras','mas claritas','mas oscuras','mas fuertes','mas fuerte','mas visibles','menos visibles','se vean menos','se vean mas'))){
+    let v=valorDe(t,['opacidad','a','al','en','transparencia','intensidad']);
+    if(v!=null&&v<=10)v*=10;
+    const ahora=Math.round((S.opLineas??1)*100);
+    if(v==null){const masVis=has('mas oscuras','mas fuertes','mas fuerte','mas visibles','se vean mas','mas opaca','mas opacas')||(!fino&&sube&&!has('transparente','transparentes','transparencia'));v=ahora+(masVis?1:-1)*(mucho?40:20);}
+    v=ponerRango('#rOpLin',v);return 'Opacidad líneas '+v+'%';}
+  // --- grosor ---
+  const esGrosor=has('grosor','grueso','gruesa','gruesas','gruesos','delgado','delgada','delgadas','delgados','gordo','gorda','gordas','ancho','ancha','anchas','espesor')||pre('engros','engrues','adelgaz')||(has('fino','fina','finas','finos','finito','finita','finitas')&&has('mas','menos','muy','un poco','poquito','bien'));
+  if(esGrosor){
+    const val=valorDe(t,['grosor','a','al','en','espesor','tamano']);
+    if(has('gemini','geminis')){if(!S.gem)return 'Primero importa las líneas de Gemini';
+      let g=S.gemGros||9; g=val!=null?val:(g===9?(dir<0?3:9):g+(dir||1));
+      g=ponerRango('#rGemGros',Math.max(1,g));return 'Grosor Gemini '+(g>=9?'original':g);}
+    if(!capas.length&&has('lineas del dibujo','linea del dibujo','las lineas','lineas','el dibujo','del dibujo','trazos','todas las lineas')){
+      if(S.gem&&S.fuente!=='auto'){let g=S.gemGros||9;g=val!=null?val:(g===9?(dir<0?3:9):g+(dir||1));g=ponerRango('#rGemGros',Math.max(1,g));return 'Grosor Gemini '+(g>=9?'original':g);}
+      const v=ponerRango('#rGrosor',val!=null?val:S.grosor+(dir||1));return 'Grosor líneas '+v;}
+    const ks=objetivo();vis();
+    ks.forEach(k=>S.estGros[k]=Math.max(1,Math.min(8,val!=null?val:S.estGros[k]+(dir||1))));
+    dibujarEstCapas();if(ks.length===1)resaltarCapa(ks[0]);else pintar();
+    return 'Grosor '+listaC(ks)+': '+ks.map(k=>S.estGros[k]).join(', ').replace(/, (\d+)$/,' y $1');}
+  // --- estilo de trazo ---
+  const est=has('puntos','punteado','punteada','puntitos','puntico','punticos','pepitas')?'puntos':
+    has('intermitente','intermitentes','rayas','rayitas','guiones','guioncitos','discontinua','discontinuo','cortada','cortadas','entrecortada','entrecortadas','lineas cortas')?'intermitente':
+    has('linea fina','lineas finas','linea delgada','lineas delgadas','estilo fino','fina','finas')?'fina':
+    has('continua','continuas','continuo','solida','solidas','linea normal','linea completa','linea entera','lineas continuas')?'continua':
+    has('relleno','rellena','rellenar','rellenala','rellenalas','solido','rellenas')?'relleno':null;
+  if(est){const ks=objetivo();vis();ks.forEach(k=>S.estilos[k]=est);dibujarEstCapas();if(ks.length===1)resaltarCapa(ks[0]);else pintar();
+    return 'Estilo '+listaC(ks)+': '+ESTILO_NOM[est];}
+  // --- de dónde salen las líneas ---
+  if(S.gem&&has('ambas','las dos','combinadas','combinalas','combina','mezcla','mezcladas','juntas')&&has('lineas','linea','gemini','app','fuentes','dibujos')||(S.gem&&has('lineas ambas','ambas lineas'))){marcarSeg('#segFuente','ambas');return 'Líneas: ambas';}
+  if(S.gem&&has('lineas de la app','lineas de app','las de la app','lineas automaticas','lineas propias','solo la app','lineas de la aplicacion','lineas app')){marcarSeg('#segFuente','auto');return 'Líneas: app';}
+  if(S.gem&&has('lineas de gemini','las de gemini','solo gemini','lineas gemini','lineas geminis','usa gemini')){marcarSeg('#segFuente','gemini');return 'Líneas: Gemini';}
+  // --- fondo ---
+  if(has('solo lineas','solo las lineas','solamente lineas','solamente las lineas','fondo blanco','sin imagen','sin la imagen','quita la imagen','quitale la imagen','oculta la imagen','sin fondo','sin la foto','quita la foto')){marcarSeg('#segEstFondo','blanco');return 'Solo líneas';}
+  if(has('sobre la imagen','con la imagen','con imagen','muestra la imagen','pon la imagen','ponle la imagen','imagen de fondo','con fondo','con la foto','encima de la imagen','sobre la foto')){marcarSeg('#segEstFondo','img');return 'Sobre la imagen';}
+  // --- líneas del dibujo sí/no ---
+  if(has('solo sombras','solo las sombras','solamente sombras','solamente las sombras','sin lineas','sin las lineas','sin lineas del dibujo')){S.conLineas=false;$('#cLineas').checked=false;vis();return fin('Líneas del dibujo: no');}
+  if(has('lineas del dibujo','linea del dibujo','las lineas','lineas','el dibujo')&&(si||no)&&!capas.length){S.conLineas=!no;$('#cLineas').checked=S.conLineas;return fin('Líneas del dibujo: '+(S.conLineas?'sí':'no'));}
+  // --- tinta ---
+  {const c=has('morado','morada','violeta','purpura','lila','morados')?'morado':has('rojo','roja','rojos','rojas')?'rojo':has('negro','negra','negros','negras')?'negro':has('por capa','colores','de colores','cada capa de un color','multicolor')?'colores':null;
+   if(c&&!has('capa','capas')||c&&has('tinta','color','colores')){marcarSeg('#segTinta',c);return 'Tinta: '+({morado:'morado',rojo:'rojo',negro:'negro',colores:'por capa'})[c];}}
+  // --- sensibilidad, suavizado, zona y detalle ---
+  const ajuste=(palabras,id,paso,nom)=>{if(!has(...palabras))return null;const r=$(id);
+    const val=valorDe(t,[...palabras,'a','al','en']);const v=ponerRango(id,val!=null?val:+r.value+(dir||1)*paso);return nom+' '+v;};
+  const aj=ajuste(['sensibilidad','sensible'],'#rSens',3,'Sensibilidad')||ajuste(['suavizado','suavizar','suaviza','suavidad'],'#rSuave',1,'Suavizado')||
+    ajuste(['zona minima'],'#rZona',1,'Zona mínima')||ajuste(['detalle minimo','detalle','detalles','motas'],'#rMin',10,'Detalle mínimo');
+  if(aj)return aj;
+  // --- herramientas y guardar ---
+  if(has('lapiz','dibujar','modo dibujo','pintar')){marcarSeg('#segHerr','lapiz');return 'Lápiz';}
+  if(has('borrador','modo borrar','goma')){marcarSeg('#segHerr','borrar');return 'Borrador';}
+  if(has('modo mover','mano','herramienta mover')){marcarSeg('#segHerr','ver');return 'Mover';}
+  if(pre('guard')&&!has('no')){$('#bEstGuardar').click();return 'Guardar esténcil';}
+  return null;
+}
 function ejecutarVoz(t){
   if(!S.capa)return null;
+  // "deja solamente una capa" = solo la capa en la que vas
+  t=t.replace(/ (?:solo |solamente |unicamente )?una (?:sola )?capa (?!(?:\d+|uno|una|dos|tres|cuatro|cinco|seis|ultima) )/,' solo capa '+(S.actual+1)+' ');
+  const h=[];const r=ejecutarVozBase(t,h);
+  const todos=h.slice();if(r&&!todos.includes(r))todos.push(r);
+  return todos.length?todos.join(' + '):null;
+}
+function ejecutarVozBase(t,hechos){
   const has=(...ws)=>tiene(t,...ws);
   const pre=(...ps)=>new RegExp(' ('+ps.join('|')+')[a-z]*').test(t);
   const ns=numeros(t), num=ns.length>0;
@@ -1529,8 +1690,9 @@ function ejecutarVoz(t){
   if(has('deja de escuchar','para de escuchar')){ponerConversacion(false);return 'En pausa';}
   if(has('pantalla completa','esconde los botones','oculta los botones','quita los botones','esconde todo','modo limpio','pantalla limpia','sin botones','oculta el menu','esconde el menu')){pantallaCompleta(true);return 'Pantalla completa';}
   if(has('muestra los botones','pon los botones','ensename los botones','muestrame los botones','sal de pantalla completa','quita la pantalla completa','muestra el menu','abre el menu','botones')){pantallaCompleta(false);return 'Botones visibles';}
-  if(has('ver estencil','modo estencil','pestana estencil','ver stencil','ir a estencil','abre estencil','abrir estencil')){$('[data-tab=est]').click();return 'Esténcil';}
-  if(!num&&has('ver capas','modo capas','ir a capas','abre capas','abrir capas','vuelve a capas')){$('[data-tab=ver]').click();return 'Ver capas';}
+  {const r=vozEstencil(t,hechos);if(r)return r;}
+  if(!num&&S.tab!=='ver'&&has('ver capas','modo capas','ir a capas','abre capas','abrir capas','vuelve a capas','ve a capas','vete a capas','pasate a capas','pasa a capas','muevete a capas','pestana capas','pestana de capas','a ver capas','ver las capas')){$('[data-tab=ver]').click();return 'Ver capas';}
+  if(hechos.length&&t.trim().split(' ').length<=3&&!num)return null; // solo era "pásate al esténcil"
   // --- zoom a un área 1-9 ---
   {const m=t.match(/ (?:area|areas|zona|cuadro|cuadrante|recuadro|parte|sector|seccion|bloque|zoom(?: en| a| al| hacia)?(?: el| la)?)(?: area| zona| parte)? (?:numero )?(\d|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve) /);
    const N2={...NUM,siete:7,ocho:8,nueve:9};
@@ -1566,7 +1728,8 @@ function ejecutarVoz(t){
     ['real','Real',['real','reales','grises reales','tonos reales','sombreado','vista real']],
     ['plano','Gris plano',['gris plano','plano','plana','gris','grises planos']],
     ['guia','Guía',['guia','rosado','rosada','mapa','la guia']]];
-  if(S.tab!=='est'&&!num)for(const [v,nm,ws] of vistas)if(has(...ws)){$(`#segVista [data-v=${v}]`).click();return 'Vista: '+nm;}
+  if(S.tab!=='est')for(const [v,nm,ws] of vistas)if(!(v==='est'&&num)&&has(...ws)){$(`#segVista [data-v=${v}]`).click();
+    if(!num)return 'Vista: '+nm; if(!hechos.includes('Vista: '+nm))hechos.push('Vista: '+nm); break;}
   // --- capas ---
   const enEst=S.tab==='est';
   if(!enEst&&S.tab!=='ver')$('[data-tab=ver]').click();
@@ -1667,11 +1830,14 @@ function estadoTexto(){
     `Pestaña: ${S.tab==='est'?'esténcil':'ver capas'}. Capas visibles: ${vis.length?vis.join(', '):'ninguna'}. Capa actual: ${S.actual+1}. `+
     `Vista: ${({real:'real',plano:'gris plano',guia:'guía',orig:'original',est:'esténcil por líneas'})[S.vista]||S.vista}. `+
     `Fantasma: ${S.fantasma?'sí':'no'}. Contorno: ${S.contorno?'sí':'no'}. Zoom: ${(V.s/base).toFixed(1)}x, centro de pantalla en área ${area}. `+
-    `Cuadrícula: ${$('#grid').classList.contains('hide')?'no':'sí'}.`+(S.tab==='est'&&S.estIncl?` Sombras del esténcil activas: ${S.estIncl.map((v,k)=>v?k+1:0).filter(Boolean).join(', ')||'ninguna'}.`:'');
+    `Cuadrícula: ${$('#grid').classList.contains('hide')?'no':'sí'}.`+(S.tab==='est'&&S.estIncl?` Esténcil · sombras: ${S.estIncl.map((v,k)=>`capa ${k+1} ${v?'visible':'apagada'}, ${ESTILO_NOM[S.estilos[k]]}, grosor ${S.estGros[k]}`).join('; ')}. `+
+    `Fondo: ${S.estFondo==='img'?'sobre la imagen':'solo líneas'}. Tinta: ${S.tinta}. Líneas del dibujo: ${S.conLineas?'sí':'no'} (grosor ${S.grosor}, opacidad ${Math.round((S.opLineas??1)*100)}%). `+
+    (S.gem?`Líneas de Gemini importadas: fuente ${S.fuente}, grosor Gemini ${S.gemGros||'original'}, rellenos ${S.gemRelleno?'sí':'no'}. `:'Sin líneas de Gemini. ')+`Sensibilidad ${S.sens}.`:'');
 }
 function sistemaIA(){return `Eres "${cap1(VOZ.clave)}", la asistente de voz de Stencil Lab, la app que Bran (tatuador, marca ktrsis.ink) usa en su tablet mientras tatúa con guantes, sin tocar la pantalla. Te habla por voz y tú le respondes en voz alta.
 
 La app divide el diseño en capas de tono: capa 1 = la más clara, la última = la más oscura. Tiene vistas (real, gris plano, guía, original, esténcil por líneas), fantasma (muestra tenue lo que falta), contorno, y zoom por 9 áreas: 1-2-3 arriba, 4-5-6 en el medio, 7-8-9 abajo (izquierda a derecha).
+Arriba hay pestañas: Ver capas, Tonos, Fondo y Esténcil. En la pestaña Esténcil (los ajustes del esténcil) cada capa de sombra tiene: visible sí/no, grosor 1 a 8 y estilo (línea fina, puntos, intermitente, continua o relleno). También están las líneas del dibujo (sí/no, grosor 1 a 6, opacidad 15 a 100%), las líneas de Gemini si se importaron (grosor 1 a 8, rellenos sí/no, y de dónde salen las líneas: app, gemini o ambas), el fondo (sobre la imagen o solo líneas), la tinta (morado, rojo, negro o por capa) y la sensibilidad (3 a 40). En Esténcil, "solo capa", "si capa" y "no capa" prenden o apagan las sombras del esténcil.
 
 Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"respuesta":"..."}
 
@@ -1680,7 +1846,8 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "area N" (zoom a un área 1-9) · "aumenta" · "aumenta un poco" · "aumenta mucho" · "aumenta derecha" · "aumenta izquierda" · "aumenta arriba" · "aumenta abajo" · "alejate" · "alejate un poco" · "alejate mucho"
 "derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" (muestra las 9 áreas unos segundos) · "deja la cuadricula" (áreas fijas) · "no cuadricula"
 "vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
-"fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" · "deshacer" · "pantalla completa" · "muestra los botones"
+"fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" (ir a la pestaña Esténcil) · "vista estencil" (en Ver capas, ver el diseño como esténcil) · "deshacer" · "pantalla completa" · "muestra los botones"
+Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "solo lineas" (fondo blanco) · "sobre la imagen" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
 Usa [] si solo es una pregunta o charla.
 
 "respuesta": lo que vas a decir en voz alta. ${({cercana:"De 1 a 2 frases, en español colombiano cercano, relajado y con chispa, como una compañera del estudio que sabe de tatuaje.",elocuente:"De 1 a 3 frases, elocuente, cálida y segura, con vocabulario rico y natural, como una asistente refinada de película; nunca exagerada ni rimbombante.",profesional:"De 1 a 2 frases, en español neutro, profesional, claro y respetuoso.",breve:"Lo más corto posible: 2 a 6 palabras."})[IA.estilo]||"1 a 2 frases."} Sin emojis, sin markdown, sin listas.
@@ -1701,6 +1868,8 @@ Personalidad:
 Ejemplos (estilo, no copiar literal):
 Bran: "solo capa dos y tres" → {"acciones":["solo capa 2 3"],"respuesta":"Listo, te dejé las sombras medias; lo claro y lo oscuro quedan guardados."}
 Bran: "acércame al ojo" → {"acciones":["area 2","aumenta"],"respuesta":"Ahí te acerqué al ojo, en el área dos. Si no era ahí, me dices y lo muevo."}
+Bran: "déjame ver la capa cuatro del esténcil y súbele el grosor" → {"acciones":["ver estencil","solo capa 4","grosor capa 4 mas"],"respuesta":"Listo, te dejé la capa cuatro sola en el esténcil y le subí un punto al grosor."}
+Bran: "ponlo en real y deja solo la capa tres" → {"acciones":["ver capas","vista real","solo capa 3"],"respuesta":"Ahí está en real, solo con la capa tres."}
 Bran: "qué más pues" → {"acciones":[],"respuesta":"Aquí firme, acompañándote. ¿Seguimos con las medias o le damos al negro?"}`;}
 let nPeticion=0;
 function httpIA(url,enc,cuerpo,cb){ // cuerpo null = GET
