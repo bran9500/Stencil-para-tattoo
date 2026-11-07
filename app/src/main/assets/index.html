@@ -234,7 +234,14 @@ body.inmersivo #bPantalla{opacity:.55}
       </div>
       <div class="fila" id="filaGemGros" style="display:none">
         <label>Grosor Gemini</label>
-        <input type="range" id="rGemGros" min="0" max="8" value="0"><span class="v" id="vGemGros">orig</span>
+        <input type="range" id="rGemGros" min="1" max="9" value="2"><span class="v" id="vGemGros">2</span>
+      </div>
+      <div class="fila" id="filaGemRell" style="display:none">
+        <button id="bGemRell" style="flex:1">Rellenos Gemini: no</button>
+      </div>
+      <div class="fila" id="filaOpLin">
+        <label>Opacidad líneas</label>
+        <input type="range" id="rOpLin" min="15" max="100" value="100"><span class="v" id="vOpLin">100%</span>
       </div>
       <div class="fila" id="filaFuente" style="display:none">
         <label style="min-width:auto">Líneas</label>
@@ -524,7 +531,7 @@ function prepararImagen(img,tol){
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
   const d=x.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
   for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
-  S.W=w;S.H=h;S.edits=[];if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.gemGros=0;if($('#rGemGros')){$('#rGemGros').value=0;$('#vGemGros').textContent='orig';$('#filaGemGros').style.display='none';}S.fuente='auto';S.gris=g;
+  S.W=w;S.H=h;S.edits=[];if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.gemGros=2;if($('#rGemGros')){$('#rGemGros').value=2;$('#vGemGros').textContent='2';$('#filaGemGros').style.display='none';$('#filaGemRell').style.display='none';}S.fuente='auto';S.gris=g;
   if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';}S.suave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
   const cv=$('#cv');cv.width=w;cv.height=h;
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
@@ -820,7 +827,7 @@ function cuadricula(on,segundos=0){
 const COLORES=['#2f8fd6','#1fa36a','#d68a1f','#d0405c','#8a4fd0','#333333'];
 const TINTA={morado:[139,43,226],rojo:[214,40,40],negro:[0,0,0]};
 S.tab='ver'; S.lineas=null; S.estFondo='img'; S.suave=3; S.minLen=40; S.grosor=1; S.tinta='morado';
-S.conLineas=true; S.sens=20; S.zona=3; S.trazos=null; S.trazosCv=null;
+S.conLineas=true; S.opLineas=1; S.gemRelleno=false; S.sens=20; S.zona=3; S.trazos=null; S.trazosCv=null;
 S.estGros=null; S.gem=null; S.fuente='auto'; S.herr='ver'; S.destino='lineas'; S.pincel=3; S.edits=[]; S.autoCv=null; S.autoKey='';
 S.estilos=null; S.estIncl=null;
 function estilosPorDefecto(N){ // 0 = más clara
@@ -1018,15 +1025,7 @@ function trazar(ctx,o={}){
     for(const pl of S.lineas[c]){ctx.moveTo(pl[0][0],pl[0][1]);for(let i=1;i<pl.length;i++)ctx.lineTo(pl[i][0],pl[i][1]);ctx.closePath();}
     ctx.fill('evenodd');
   }
-  for(let c=0;c<S.N;c++){ if(!S.estIncl[c])continue;
-    const e=S.estilos[c]; if(e==='relleno')continue;
-    const fl=!o.termica&&S.flash&&S.flash.k===c&&performance.now()<S.flash.hasta;
-    estiloTrazo(ctx,e,Math.max(minT,base*S.estGros[c]*.6)*(fl?1.3:1),fl?'#ff2d55':col(c),o.termica);
-    ctx.beginPath();
-    for(const pl of S.lineas[c]){ctx.moveTo(pl[0][0],pl[0][1]);for(let i=1;i<pl.length;i++)ctx.lineTo(pl[i][0],pl[i][1]);}
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);ctx.globalAlpha=1;
+  // líneas del dibujo debajo: las sombras van encima y siempre se ven
   if(S.conLineas){
     const tc=lienzoLineasBase();
     if(o.termica){ // negro y engrosado si hace falta
@@ -1035,8 +1034,18 @@ function trazar(ctx,o={}){
       for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)if(dx*dx+dy*dy<=r*r)x2.drawImage(tc,dx,dy);
       x2.globalCompositeOperation='source-in';x2.fillStyle='#000';x2.fillRect(0,0,S.W,S.H);
       ctx.drawImage(c2,0,0);
-    } else ctx.drawImage(teñir(tc,S.tinta==='colores'?'#282828':`rgb(${TINTA[S.tinta]})`),0,0);
+    } else {ctx.globalAlpha=S.opLineas??1;ctx.drawImage(teñir(tc,S.tinta==='colores'?'#282828':`rgb(${TINTA[S.tinta]})`),0,0);ctx.globalAlpha=1;}
   }
+  for(let c=0;c<S.N;c++){ if(!S.estIncl[c])continue;
+    const e=S.estilos[c]; if(e==='relleno')continue;
+    const fl=!o.termica&&S.flash&&S.flash.k===c&&performance.now()<S.flash.hasta;
+    estiloTrazo(ctx,e,Math.max(minT,base*S.estGros[c]*.6)*(fl?1.3:1),fl?'#ff2d55':col(c),o.termica);
+    ctx.beginPath();
+    for(const pl of S.lineas[c]){ctx.moveTo(pl[0][0],pl[0][1]);for(let i=1;i<pl.length;i++)ctx.lineTo(pl[i][0],pl[i][1]);}
+    ctx.stroke();
+  }
+
+  ctx.setLineDash([]);ctx.globalAlpha=1;
 }
 
 function lineasVisibles(k){
@@ -1197,7 +1206,7 @@ function importarGemini(img){
   const s=Math.min(S.W/w,S.H/h);
   const M=new Uint8Array(w*h);for(let i=0,j=3;i<M.length;i++,j+=4)M[i]=d[j]>110?1:0;
   S.gem={cv:c,w,h,cx:S.W/2,cy:S.H/2,s,r:0,ini:{cx:S.W/2,cy:S.H/2,s,r:0},mask:M,esq:null,cvs:{}};
-  $('#filaGemGros').style.display='flex';
+  $('#filaGemGros').style.display='flex';$('#filaGemRell').style.display='flex';
   S.fuente='gemini'; S.lineasCv=null;
   $('#filaFuente').style.display='flex';$('#bAlinear').style.display='';
   $$('#segFuente button').forEach(b=>b.classList.toggle('on',b.dataset.v==='gemini'));
@@ -1205,8 +1214,13 @@ function importarGemini(img){
   elegirHerr('alinear');
   aviso('Ajusta con los dedos hasta que calce y toca Listo',4000);
 }
-$('#rGemGros').oninput=e=>{S.gemGros=+e.target.value;$('#vGemGros').textContent=S.gemGros||'orig';S.gemCache=null;
+$('#rGemGros').oninput=e=>{const v=+e.target.value;S.gemGros=v>=9?0:v;$('#vGemGros').textContent=S.gemGros||'orig';S.gemCache=null;
   clearTimeout(tEst);tEst=setTimeout(()=>ocupado(pintar),150);};
+function ponerRellGem(on){S.gemRelleno=on;$('#bGemRell').textContent='Rellenos Gemini: '+(on?'sí':'no');$('#bGemRell').classList.toggle('on',on);
+  if(S.gem)S.gem.cvs={};S.gemCache=null;}
+$('#bGemRell').onclick=()=>{ponerRellGem(!S.gemRelleno);ocupado(pintar);};
+$('#rOpLin').oninput=e=>{S.opLineas=+e.target.value/100;$('#vOpLin').textContent=e.target.value+'%';
+  clearTimeout(tEst);tEst=setTimeout(pintar,60);};
 seg('#segFuente',v=>{S.fuente=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
 $('#bAlinReset').onclick=()=>{if(S.gem){Object.assign(S.gem,S.gem.ini);pintar();}};
 $('#bAlinListo').onclick=()=>elegirHerr('ver');
@@ -1238,11 +1252,12 @@ function gemLienzoGrosor(){ // líneas de Gemini con grosor uniforme (0 = origin
   const aLienzo=m=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),im=x.createImageData(w,h),d=im.data;
     for(let i=0,j=3;i<m.length;i++,j+=4)if(m[i])d[j]=255;x.putImageData(im,0,0);return c;};
   if(!G.esqCv)G.esqCv=aLienzo(G.esq);
-  if(!G.rellCv){const rr=Math.max(2,Math.round(Math.max(w,h)/450));G.rellCv=aLienzo(dilatar(erosionar(mask,w,h,rr),w,h,rr));}
+  // solo manchas realmente grandes (pupilas, negros sólidos) se conservan como relleno
+  if(S.gemRelleno&&!G.rellCv){const rr=Math.max(5,Math.round(Math.max(w,h)/110));G.rellCv=aLienzo(dilatar(erosionar(mask,w,h,rr),w,h,rr));}
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
   const r=g<=1?0:g/2, R=Math.ceil(r);
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++)if(dx*dx+dy*dy<=r*r+.35)x.drawImage(G.esqCv,dx,dy);
-  x.drawImage(G.rellCv,0,0);
+  if(S.gemRelleno&&G.rellCv)x.drawImage(G.rellCv,0,0);
   G.cvs[g]=c;return c;
 }
 function gemGrueso(){
