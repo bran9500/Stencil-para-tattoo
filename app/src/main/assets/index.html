@@ -228,6 +228,9 @@ body.inmersivo #bPantalla{opacity:.55}
 
     <div data-pane="est" class="hide">
       <div class="fila">
+        <button id="bSinBloques" class="on" style="flex:1">Sin bloques · solo líneas: sí</button>
+      </div>
+      <div class="fila">
         <button id="bPrompt" style="flex:1">📋 Prompt Gemini</button>
         <button id="bImportG" style="flex:1">⬆ Importar líneas</button>
         <input type="file" id="archivoG" accept="image/*" class="hide">
@@ -388,6 +391,7 @@ body.inmersivo #bPantalla{opacity:.55}
       <p><b>Capas</b> · déjame ver la capa 4 · solo la 2 y 3 · quita la 1 · pon la 4</p>
       <p><b>Grosor de capa</b> · súbele el grosor a la capa 4 · capa 2 más gruesa · más delgada · grosor de la capa 3 a 5 <span>(sin número de capa: las capas visibles)</span></p>
       <p><b>Estilo</b> · capa 1 en puntos · capa 3 intermitente / rayas · línea fina · continua · relleno</p>
+      <p><b>Sin bloques</b> · quita los bloques · sin rellenos · sin manchas · <b>volver</b>: con rellenos</p>
       <p><b>Fondo</b> · solo líneas · fondo blanco · quita la imagen · sobre la imagen · con la imagen</p>
       <p><b>Líneas del dibujo</b> · quita las líneas · pon las líneas · solo las sombras · líneas más delgadas · líneas más gruesas · grosor de las líneas a 2</p>
       <p><b>Opacidad</b> · líneas más suaves · más transparentes · más fuertes · opacidad al 50</p>
@@ -839,7 +843,8 @@ function cuadricula(on,segundos=0){
 const COLORES=['#2f8fd6','#1fa36a','#d68a1f','#d0405c','#8a4fd0','#333333'];
 const TINTA={morado:[139,43,226],rojo:[214,40,40],negro:[0,0,0]};
 S.tab='ver'; S.lineas=null; S.estFondo='img'; S.suave=3; S.minLen=40; S.grosor=1; S.tinta='morado';
-S.conLineas=true; S.opLineas=1; S.gemRelleno=false; S.sens=20; S.zona=3; S.trazos=null; S.trazosCv=null;
+S.conLineas=true; S.opLineas=1; S.gemRelleno=false;
+S.sinBloques=true; try{if(localStorage.getItem('sinBloques')==='0')S.sinBloques=false;}catch(_){} S.sens=20; S.zona=3; S.trazos=null; S.trazosCv=null;
 S.estGros=null; S.gem=null; S.fuente='auto'; S.herr='ver'; S.destino='lineas'; S.pincel=3; S.edits=[]; S.autoCv=null; S.autoKey='';
 S.estilos=null; S.estIncl=null;
 function estilosPorDefecto(N){ // 0 = más clara
@@ -861,7 +866,7 @@ function dibujarEstCapas(){
     const cb=f.querySelector('input'),sel=f.querySelector('select');sel.value=S.estilos[k];
     cb.onchange=()=>{S.estIncl[k]=cb.checked;pintar();};
     f.querySelectorAll('.gr button').forEach(b=>b.onclick=()=>{S.estGros[k]=Math.max(1,Math.min(8,S.estGros[k]+(+b.dataset.d)));dibujarEstCapas();resaltarCapa(k);});
-    sel.onchange=()=>{S.estilos[k]=sel.value;dibujarEstCapas();pintar();};
+    sel.onchange=()=>{S.estilos[k]=sel.value;if(sel.value==='relleno'&&S.sinBloques){ponerSinBloques(false,true);aviso('Quité "Sin bloques" para que esta capa vaya rellena',2800);}dibujarEstCapas();pintar();};
     box.appendChild(f);
   }
   llenarDestino();
@@ -1032,7 +1037,7 @@ function trazar(ctx,o={}){
   const base=Math.max(1,Math.max(S.W,S.H)/1400), minT=o.termica?Math.max(2,Math.max(S.W,S.H)/550):0;
   const col=c=>o.termica?'#000':colorCapa(c);
   ctx.lineCap='round';ctx.lineJoin='round';
-  for(let c=0;c<S.N;c++){ if(!S.estIncl[c]||S.estilos[c]!=='relleno')continue;
+  for(let c=0;c<S.N;c++){ if(!S.estIncl[c]||S.estilos[c]!=='relleno'||S.sinBloques)continue;
     ctx.fillStyle=col(c);ctx.beginPath();
     for(const pl of S.lineas[c]){ctx.moveTo(pl[0][0],pl[0][1]);for(let i=1;i<pl.length;i++)ctx.lineTo(pl[i][0],pl[i][1]);ctx.closePath();}
     ctx.fill('evenodd');
@@ -1049,7 +1054,7 @@ function trazar(ctx,o={}){
     } else {ctx.globalAlpha=S.opLineas??1;ctx.drawImage(teñir(tc,S.tinta==='colores'?'#282828':`rgb(${TINTA[S.tinta]})`),0,0);ctx.globalAlpha=1;}
   }
   for(let c=0;c<S.N;c++){ if(!S.estIncl[c])continue;
-    const e=S.estilos[c]; if(e==='relleno')continue;
+    let e=S.estilos[c]; if(e==='relleno'){if(!S.sinBloques)continue;e='continua';}
     const fl=!o.termica&&S.flash&&S.flash.k===c&&performance.now()<S.flash.hasta;
     estiloTrazo(ctx,e,Math.max(minT,base*S.estGros[c]*.6)*(fl?1.3:1),fl?'#ff2d55':col(c),o.termica);
     ctx.beginPath();
@@ -1228,9 +1233,16 @@ function importarGemini(img){
 }
 $('#rGemGros').oninput=e=>{const v=+e.target.value;S.gemGros=v>=9?0:v;$('#vGemGros').textContent=S.gemGros||'orig';S.gemCache=null;
   clearTimeout(tEst);tEst=setTimeout(()=>ocupado(pintar),150);};
-function ponerRellGem(on){S.gemRelleno=on;$('#bGemRell').textContent='Rellenos Gemini: '+(on?'sí':'no');$('#bGemRell').classList.toggle('on',on);
+function ponerRellGem(on){if(on&&S.sinBloques){ponerSinBloques(false,true);aviso('Quité "Sin bloques" para dejar los rellenos de Gemini',2800);}S.gemRelleno=on;$('#bGemRell').textContent='Rellenos Gemini: '+(on?'sí':'no');$('#bGemRell').classList.toggle('on',on);
   if(S.gem)S.gem.cvs={};S.gemCache=null;}
 $('#bGemRell').onclick=()=>{ponerRellGem(!S.gemRelleno);ocupado(pintar);};
+function ponerSinBloques(on,silencio){S.sinBloques=on;try{localStorage.setItem('sinBloques',on?'1':'0');}catch(_){}
+  $('#bSinBloques').textContent='Sin bloques · solo líneas: '+(on?'sí':'no');$('#bSinBloques').classList.toggle('on',on);
+  if(on&&S.gemRelleno)ponerRellGem(false);
+  if(S.gem)S.gem.cvs={};S.gemCache=null;
+  if(!silencio)aviso(on?'Sin bloques: las zonas negras se vuelven solo su contorno':'Bloques permitidos: se respetan los rellenos',2800);}
+$('#bSinBloques').onclick=()=>{ponerSinBloques(!S.sinBloques);if(S.capa)ocupado(pintar);};
+setTimeout(()=>ponerSinBloques(S.sinBloques,true),0);
 $('#rOpLin').oninput=e=>{S.opLineas=+e.target.value/100;$('#vOpLin').textContent=e.target.value+'%';
   clearTimeout(tEst);tEst=setTimeout(pintar,60);};
 seg('#segFuente',v=>{S.fuente=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
@@ -1257,24 +1269,39 @@ function lienzoLineasBase(){
   if(usarGem) x.drawImage(gemGrueso(),0,0);
   return c;
 }
+function gemManchas(G){ // zonas negras gruesas de Gemini: borde (para dibujar) e interior (para quitar)
+  if(G.manchas)return G.manchas;
+  const {w,h,mask}=G,M=Math.max(w,h),rr=Math.max(4,Math.round(M/220)),lw=Math.max(1,Math.round(M/900));
+  const blob=dilatar(erosionar(mask,w,h,rr),w,h,rr), inner=erosionar(blob,w,h,lw);
+  const borde=new Uint8Array(w*h);let n=0;for(let i=0;i<borde.length;i++)if(blob[i]&&!inner[i]){borde[i]=1;}else if(inner[i])n++;
+  return G.manchas={borde,inner,hay:n>0};
+}
 function gemLienzoGrosor(){ // líneas de Gemini con grosor uniforme (0 = original)
-  const G=S.gem,g=S.gemGros||0; if(!g)return G.cv;
-  if(G.cvs[g])return G.cvs[g];
-  const {w,h,mask}=G; if(!G.esq)G.esq=adelgazar(mask,w,h);
+  const G=S.gem,g=S.gemGros||0,sb=!!S.sinBloques;
+  const {w,h,mask}=G;
   const aLienzo=m=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),im=x.createImageData(w,h),d=im.data;
     for(let i=0,j=3;i<m.length;i++,j+=4)if(m[i])d[j]=255;x.putImageData(im,0,0);return c;};
+  if(!g&&!sb)return G.cv;
+  const clave=g+(sb?'s':'');
+  if(G.cvs[clave])return G.cvs[clave];
+  if(!g){ // original, pero las manchas quedan huecas
+    const {inner}=gemManchas(G),m=new Uint8Array(w*h);for(let i=0;i<m.length;i++)m[i]=mask[i]&&!inner[i]?1:0;
+    return G.cvs[clave]=aLienzo(m);}
+  if(!G.esq)G.esq=adelgazar(mask,w,h);
+  if(sb&&!G.esqSbCv){const {borde,inner}=gemManchas(G),m=new Uint8Array(w*h);for(let i=0;i<m.length;i++)m[i]=(G.esq[i]&&!inner[i])||borde[i]?1:0;G.esqSbCv=aLienzo(m);}
   if(!G.esqCv)G.esqCv=aLienzo(G.esq);
   // solo manchas realmente grandes (pupilas, negros sólidos) se conservan como relleno
-  if(S.gemRelleno&&!G.rellCv){const rr=Math.max(5,Math.round(Math.max(w,h)/110));G.rellCv=aLienzo(dilatar(erosionar(mask,w,h,rr),w,h,rr));}
+  if(!sb&&S.gemRelleno&&!G.rellCv){const rr=Math.max(5,Math.round(Math.max(w,h)/110));G.rellCv=aLienzo(dilatar(erosionar(mask,w,h,rr),w,h,rr));}
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
   const r=g<=1?0:g/2, R=Math.ceil(r);
-  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++)if(dx*dx+dy*dy<=r*r+.35)x.drawImage(G.esqCv,dx,dy);
-  if(S.gemRelleno&&G.rellCv)x.drawImage(G.rellCv,0,0);
-  G.cvs[g]=c;return c;
+  const fuenteEsq=sb?G.esqSbCv:G.esqCv;
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++)if(dx*dx+dy*dy<=r*r+.35)x.drawImage(fuenteEsq,dx,dy);
+  if(!sb&&S.gemRelleno&&G.rellCv)x.drawImage(G.rellCv,0,0);
+  G.cvs[clave]=c;return c;
 }
 function gemGrueso(){
   const G=S.gem,r=S.gemGros?0:Math.round((S.grosor-1)*Math.max(S.W,S.H)/1600);
-  const key=[G.cx,G.cy,G.s,G.r,r,S.W,S.H,S.gemGros||0].join('|');
+  const key=[G.cx,G.cy,G.s,G.r,r,S.W,S.H,S.gemGros||0,S.sinBloques?1:0].join('|');
   if(S.gemCache&&S.gemCache.key===key)return S.gemCache.cv;
   const base=document.createElement('canvas');base.width=S.W;base.height=S.H;dibujarGem(base.getContext('2d'),gemLienzoGrosor());
   let out=base;
@@ -1548,6 +1575,7 @@ function paraDecir(r){
   if((m=r.match(/^Líneas del dibujo: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, volvieron las líneas.','Ahí están las líneas del dibujo.'],['Perfecto, volví a mostrar las líneas del dibujo.'],['Líneas visibles.'])):elegir(V(['Listo, quité las líneas; quedan las sombras.','Fuera las líneas, solo sombras.'],['Oculté las líneas del dibujo para que veas solo las sombras.'],['Líneas ocultas.']));
   if((m=r.match(/^Opacidad líneas (\d+)%$/)))return elegir(V([`Listo, líneas al ${m[1]} por ciento.`,`Ahí las dejé al ${m[1]} por ciento.`],[`Perfecto, las líneas quedaron al ${m[1]} por ciento de opacidad.`],[`Opacidad ${m[1]} por ciento.`]));
   if((m=r.match(/^Tinta: (.*)$/)))return elegir(V([`Listo, tinta ${m[1]}.`,`Ahí está en ${m[1]}.`],[`Perfecto, cambié la tinta a ${m[1]}.`],[`Tinta ${m[1]}.`]));
+  if(r==='Sin bloques')return elegir(V(['Listo, nada de bloques; solo líneas.','Hecho, las manchas negras quedan solo con su contorno.'],['Perfecto, quité los rellenos: el esténcil queda solo con líneas.'],['Sin bloques.']));
   if(r==='Solo líneas')return elegir(V(['Listo, te dejo solo las líneas.','Ahí está el esténcil limpio, sin la imagen.'],['Perfecto, quité la imagen de fondo para que veas solo el esténcil.'],['Solo líneas.']));
   if(r==='Sobre la imagen')return elegir(V(['Listo, el esténcil va encima de la imagen.','Ahí te puse la imagen debajo.'],['Perfecto, volví a poner la imagen debajo del esténcil.'],['Sobre la imagen.']));
   if(/^Imagen completa/.test(r))return elegir(V(['Ahí está el diseño completo.','Listo, todo a la vista.'],['Perfecto, volví a la vista completa del diseño.'],['Vista completa.']));
@@ -1614,6 +1642,10 @@ function vozEstencil(t,h){
     if(has('solo','solamente','unicamente','nada mas','dejame ver','deja ver','ver la','ver las','ver solo','ensename','muestrame'))S.estIncl=S.estIncl.map((_,k)=>capas.includes(k+1));
     else capas.forEach(n=>S.estIncl[n-1]=true);};
   const fin=msg=>{dibujarEstCapas();pintar();return msg;};
+  // --- sin bloques (solo líneas, nada relleno) ---
+  if(has('bloque','bloques','bloques negros','manchas','manchas negras','sin rellenos','quita los rellenos','quitale los rellenos','saca los rellenos','con rellenos','pon los rellenos','rellenos negros','nada relleno','sin relleno')&&!has('gemini','geminis')){
+    const on=has('sin bloques','sin rellenos','sin relleno','nada relleno','sin manchas')||pre('quit','saca','elimin','borr','apag')?true:has('con bloques','con rellenos','pon los rellenos','deja los rellenos','con manchas')?false:!S.sinBloques;
+    ponerSinBloques(on,true);ocupado(pintar);return on?'Sin bloques':'Bloques permitidos';}
   // --- rellenos de Gemini ---
   if(has('relleno','rellenos','rellenas')&&has('gemini','geminis')){if(!S.gem)return 'Primero importa las líneas de Gemini';
     ponerRellGem(no?false:si?true:!S.gemRelleno);ocupado(pintar);return 'Rellenos Gemini: '+(S.gemRelleno?'sí':'no');}
