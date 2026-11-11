@@ -181,6 +181,9 @@ body.inmersivo #bPantalla{opacity:.55}
         <button id="bFantasma" style="flex:1">Fantasma: no</button>
         <button id="bContorno" style="flex:1" class="on">Contorno: sí</button>
       </div>
+      <div class="fila" id="filaImgDet" style="display:none">
+        <button id="bImgDet" style="flex:1">Imagen detrás: no</button>
+      </div>
       <div class="fila nav">
         <button id="bAnt">‹ Anterior</button>
         <div class="paso" id="paso">Capa 1 de 4</div>
@@ -274,6 +277,10 @@ body.inmersivo #bPantalla{opacity:.55}
         <select id="selDestino" style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px;font:inherit;font-size:13px"></select>
         <label style="min-width:auto">Tamaño</label>
         <input type="range" id="rPincel" min="1" max="12" value="3" style="flex:1"><span class="v" id="vPincel">3</span>
+      </div>
+      <div class="fila" id="filaOpImg">
+        <label>Imagen detrás</label>
+        <input type="range" id="rOpImg" min="0" max="100" value="35"><span class="v" id="vOpImg">35%</span>
       </div>
       <div class="estf">
         <input type="checkbox" id="cLineas" checked>
@@ -669,6 +676,7 @@ function grisPlano(k){const [a,b]=rangoCapa(k);return Math.round((a+b-1)/2);}
 /* ---------- pintar ---------- */
 function pintar(){
   if(!S.capa)return;
+  $('#filaImgDet').style.display=S.vista==='est'?'flex':'none';
   if(S.tab==='est'){pintarEstencil();return;}
   if(S.vista==='est'){pintarCapasEstencil();return;}
   const {W,H,gris,capa,vis,vista,fantasma,contorno,borde,fondo}=S;
@@ -867,6 +875,7 @@ const COLORES=['#2f8fd6','#1fa36a','#d68a1f','#d0405c','#8a4fd0','#333333'];
 const TINTA={morado:[139,43,226],rojo:[214,40,40],negro:[0,0,0]};
 S.tab='ver'; S.lineas=null; S.estFondo='img'; S.suave=3; S.minLen=40; S.grosor=1; S.tinta='morado';
 S.conLineas=true; S.opLineas=1; S.gemRelleno=false;
+S.opImg=.35; S.verImg=false; try{const o=localStorage.getItem('opImg');if(o!==null)S.opImg=+o/100;S.verImg=localStorage.getItem('verImg')==='1';}catch(_){}
 S.sinBloques=true; try{if(localStorage.getItem('sinBloques')==='0')S.sinBloques=false;}catch(_){} S.sens=20; S.zona=3; S.trazos=null; S.trazosCv=null;
 S.estGros=null; S.gem=null; S.fuente='auto'; S.herr='ver'; S.destino='lineas'; S.pincel=3; S.edits=[]; S.autoCv=null; S.autoKey='';
 S.estilos=null; S.estIncl=null;
@@ -1147,7 +1156,7 @@ function llenarDestino(){
 function pintarCapasEstencil(){
   asegurarEst();
   const inc=S.estIncl,fo=S.estFondo,he=S.herr;
-  S.estIncl=S.vis.slice();S.estFondo='blanco';if(S.herr==='alinear')S.herr='ver';
+  S.estIncl=S.vis.slice();S.estFondo=S.verImg?'img':'blanco';if(S.herr==='alinear')S.herr='ver';
   try{pintarEstencil();}finally{S.estIncl=inc;S.estFondo=fo;S.herr=he;}
   $('#paso').textContent=`Capa ${S.actual+1} de ${S.N}`;
   $$('.cap').forEach((el,k)=>{el.classList.toggle('vis',!!S.vis[k]);el.classList.toggle('off',!S.vis[k]);el.classList.toggle('act',k===S.actual);});
@@ -1159,15 +1168,23 @@ function pintarEstencil(){
     x.drawImage(teñir(t,'#1e6bff','alinT'),0,0);x.globalAlpha=1;return;}
   if($('#estCapas').children.length!==S.N)dibujarEstCapas();
   const cv=$('#cv'),x=cv.getContext('2d'),{W,H,gris}=S;
-  const im=x.createImageData(W,H),d=im.data;
+  const im=x.createImageData(W,H),d=im.data,kImg=S.estFondo==='img'?S.opImg:0;
   for(let i=0,j=0;i<gris.length;i++,j+=4){
-    const v=S.estFondo==='img'?255-(255-gris[i])*.35:255; d[j]=d[j+1]=d[j+2]=v; d[j+3]=255;}
+    const v=255-(255-gris[i])*kImg; d[j]=d[j+1]=d[j+2]=v; d[j+3]=255;}
   x.putImageData(im,0,0);
   x.drawImage(componer({pool:true}),0,0);
 }
 let tEst=0;
 function reEst(trazos){clearTimeout(tEst);tEst=setTimeout(()=>{S.lineas=null;if(trazos)S.trazos=null;ocupado(pintar);},150);}
 seg('#segEstFondo',v=>{S.estFondo=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
+// imagen detrás del esténcil: qué tan fuerte se ve para poder trazar encima (0 = blanco, 100 = imagen completa)
+function ponerOpImg(v){S.opImg=v/100;$('#rOpImg').value=v;$('#vOpImg').textContent=v+'%';try{localStorage.setItem('opImg',v);}catch(_){}}
+$('#rOpImg').oninput=e=>{const v=+e.target.value;ponerOpImg(v);
+  if(v>0&&S.estFondo!=='img'){marcarSeg('#segEstFondo','img');return;}
+  if(!S.rafImg)S.rafImg=requestAnimationFrame(()=>{S.rafImg=0;pintar();});};
+function ponerVerImg(on){S.verImg=on;$('#bImgDet').textContent='Imagen detrás: '+(on?'sí':'no');$('#bImgDet').classList.toggle('on',on);try{localStorage.setItem('verImg',on?'1':'0');}catch(_){}}
+$('#bImgDet').onclick=()=>{ponerVerImg(!S.verImg);pintar();};
+ponerOpImg(Math.round(S.opImg*100));ponerVerImg(S.verImg);
 $('#rSuave').oninput=e=>{S.suave=+e.target.value;$('#vSuave').textContent=S.suave;reEst();};
 $('#rMin').oninput=e=>{S.minLen=+e.target.value;$('#vMin').textContent=S.minLen;reEst(true);};
 $('#rSens').oninput=e=>{S.sens=+e.target.value;$('#vSens').textContent=S.sens;reEst(true);};
@@ -1609,6 +1626,8 @@ function paraDecir(r){
   if((m=r.match(/^Estilo capas? (.*): (.*)$/)))return elegir(V([`Listo, la ${listaPal(m[1])} ahora va en ${m[2]}.`,`Hecho, ${m[2]} para la ${listaPal(m[1])}.`],[`Perfecto, la ${listaPal(m[1])} quedó con trazo de ${m[2]}.`],[`${cap1(m[2])}.`]));
   if(r==='Ver capas')return elegir(V(['Listo, volvimos a las capas.','Ahí están las capas.'],['Perfecto, regresamos a Ver capas.'],['Ver capas.']));
   if((m=r.match(/^Líneas del dibujo: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, volvieron las líneas.','Ahí están las líneas del dibujo.'],['Perfecto, volví a mostrar las líneas del dibujo.'],['Líneas visibles.'])):elegir(V(['Listo, quité las líneas; quedan las sombras.','Fuera las líneas, solo sombras.'],['Oculté las líneas del dibujo para que veas solo las sombras.'],['Líneas ocultas.']));
+  if((m=r.match(/^Imagen detrás (\d+)%$/)))return elegir(V([`Listo, la imagen detrás al ${m[1]} por ciento.`,`Ahí está la imagen al ${m[1]} por ciento.`],[`Perfecto, dejé la imagen de fondo al ${m[1]} por ciento para que veas dónde trazas.`],[`Imagen ${m[1]} por ciento.`]));
+  if((m=r.match(/^Imagen detrás: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, puse la imagen detrás del esténcil.','Ahí está la imagen debajo.'],['Perfecto, ahora ves la imagen detrás de las líneas.'],['Imagen detrás.'])):elegir(V(['Listo, quité la imagen de atrás.','Fuera la imagen, solo líneas.'],['Perfecto, dejé solo las líneas del esténcil.'],['Sin imagen.']));
   if((m=r.match(/^Opacidad líneas (\d+)%$/)))return elegir(V([`Listo, líneas al ${m[1]} por ciento.`,`Ahí las dejé al ${m[1]} por ciento.`],[`Perfecto, las líneas quedaron al ${m[1]} por ciento de opacidad.`],[`Opacidad ${m[1]} por ciento.`]));
   if((m=r.match(/^Tinta: (.*)$/)))return elegir(V([`Listo, tinta ${m[1]}.`,`Ahí está en ${m[1]}.`],[`Perfecto, cambié la tinta a ${m[1]}.`],[`Tinta ${m[1]}.`]));
   if(r==='Sin bloques')return elegir(V(['Listo, nada de bloques; solo líneas.','Hecho, las manchas negras quedan solo con su contorno.'],['Perfecto, quité los rellenos: el esténcil queda solo con líneas.'],['Sin bloques.']));
@@ -1678,6 +1697,14 @@ function vozEstencil(t,h){
     if(has('solo','solamente','unicamente','nada mas','dejame ver','deja ver','ver la','ver las','ver solo','ensename','muestrame'))S.estIncl=S.estIncl.map((_,k)=>capas.includes(k+1));
     else capas.forEach(n=>S.estIncl[n-1]=true);};
   const fin=msg=>{dibujarEstCapas();pintar();return msg;};
+  // --- imagen detrás (para trazar viendo la imagen) ---
+  if(has('imagen detras','imagen de fondo','imagen atras','imagen debajo','imagen abajo','foto detras','foto de fondo','foto atras','imagen mas','la imagen mas','foto mas','imagen al','imagen a','imagen en')&&!has('completa','original')){
+    let v=valorDe(t,['al','a','en','imagen','foto']); if(v!=null&&v<=10)v*=10;
+    if(v==null){
+      if(no&&!sube&&!has('mas')){marcarSeg('#segEstFondo','blanco');return 'Solo líneas';}
+      const mas=has('mas fuerte','mas oscura','mas visible','se vea mas','mas marcada','completa','toda')||(sube&&!has('mas clara','mas suave','mas tenue','mas transparente','mas clarita','mas bajita'));
+      v=Math.round(S.opImg*100)+(mas?1:-1)*(mucho?40:20);}
+    v=ponerRango('#rOpImg',v);return 'Imagen detrás '+v+'%';}
   // --- sin bloques (solo líneas, nada relleno) ---
   if(has('bloque','bloques','bloques negros','manchas','manchas negras','sin rellenos','quita los rellenos','quitale los rellenos','saca los rellenos','con rellenos','pon los rellenos','rellenos negros','nada relleno','sin relleno')&&!has('gemini','geminis')){
     const on=has('sin bloques','sin rellenos','sin relleno','nada relleno','sin manchas')||pre('quit','saca','elimin','borr','apag')?true:has('con bloques','con rellenos','pon los rellenos','deja los rellenos','con manchas')?false:!S.sinBloques;
@@ -1758,6 +1785,10 @@ function ejecutarVozBase(t,hechos){
   if(has('deja de escuchar','para de escuchar')){ponerConversacion(false);return 'En pausa';}
   if(has('pantalla completa','esconde los botones','oculta los botones','quita los botones','esconde todo','modo limpio','pantalla limpia','sin botones','oculta el menu','esconde el menu')){pantallaCompleta(true);return 'Pantalla completa';}
   if(has('muestra los botones','pon los botones','ensename los botones','muestrame los botones','sal de pantalla completa','quita la pantalla completa','muestra el menu','abre el menu','botones')){pantallaCompleta(false);return 'Botones visibles';}
+  // imagen detrás del esténcil en Ver capas
+  if(S.tab!=='est'&&has('imagen detras','imagen de fondo','imagen atras','imagen debajo','foto detras','foto de fondo','foto atras')){
+    const off=pre('quit','saca','ocult','apag','retir')||has('no','sin');ponerVerImg(!off);
+    if(!off&&S.vista!=='est')$('#segVista [data-v=est]').click();else pintar();return 'Imagen detrás: '+(S.verImg?'sí':'no');}
   // girar / voltear la imagen
   {const rot=/ (gir|rot)[a-z]* /.test(t), cabeza=has('de cabeza','al reves','boca abajo','180','ciento ochenta','patas arriba','dale la vuelta','voltea','voltear','volteala','voltealo','voltee'),
      espejo=has('espejo','refleja','reflejala','reflejo','voltea de lado','volteala de lado','horizontal','como en espejo');
@@ -1907,7 +1938,7 @@ function estadoTexto(){
     `Vista: ${({real:'real',plano:'gris plano',guia:'guía',orig:'original',est:'esténcil por líneas'})[S.vista]||S.vista}. `+
     `Fantasma: ${S.fantasma?'sí':'no'}. Contorno: ${S.contorno?'sí':'no'}. Zoom: ${(V.s/base).toFixed(1)}x, centro de pantalla en área ${area}. `+
     `Cuadrícula: ${$('#grid').classList.contains('hide')?'no':'sí'}.`+(S.tab==='est'&&S.estIncl?` Esténcil · sombras: ${S.estIncl.map((v,k)=>`capa ${k+1} ${v?'visible':'apagada'}, ${ESTILO_NOM[S.estilos[k]]}, grosor ${S.estGros[k]}`).join('; ')}. `+
-    `Fondo: ${S.estFondo==='img'?'sobre la imagen':'solo líneas'}. Tinta: ${S.tinta}. Líneas del dibujo: ${S.conLineas?'sí':'no'} (grosor ${S.grosor}, opacidad ${Math.round((S.opLineas??1)*100)}%). `+
+    `Fondo: ${S.estFondo==='img'?'sobre la imagen ('+Math.round(S.opImg*100)+'%)':'solo líneas'}. Imagen detrás en Ver capas/esténcil: ${S.verImg?'sí':'no'}. Tinta: ${S.tinta}. Líneas del dibujo: ${S.conLineas?'sí':'no'} (grosor ${S.grosor}, opacidad ${Math.round((S.opLineas??1)*100)}%). `+
     (S.gem?`Líneas de Gemini importadas: fuente ${S.fuente}, grosor Gemini ${S.gemGros||'original'}, rellenos ${S.gemRelleno?'sí':'no'}. `:'Sin líneas de Gemini. ')+`Sensibilidad ${S.sens}.`:'');
 }
 function sistemaIA(){return `Eres "${cap1(VOZ.clave)}", la asistente de voz de Stencil Lab, la app que Bran (tatuador, marca ktrsis.ink) usa en su tablet mientras tatúa con guantes, sin tocar la pantalla. Te habla por voz y tú le respondes en voz alta.
@@ -1923,7 +1954,7 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" (muestra las 9 áreas unos segundos) · "deja la cuadricula" (áreas fijas) · "no cuadricula"
 "vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
 "fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" (ir a la pestaña Esténcil) · "vista estencil" (en Ver capas, ver el diseño como esténcil) · "deshacer" · "pantalla completa" · "muestra los botones"
-Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "solo lineas" (fondo blanco) · "sobre la imagen" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
+Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "solo lineas" (fondo blanco) · "sobre la imagen" · "imagen detras al X" (0 a 100, qué tan fuerte se ve la imagen debajo para trazar) · "imagen mas fuerte" · "imagen mas clara" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
 Usa [] si solo es una pregunta o charla.
 
 "respuesta": lo que vas a decir en voz alta. ${({cercana:"De 1 a 2 frases, en español colombiano cercano, relajado y con chispa, como una compañera del estudio que sabe de tatuaje.",elocuente:"De 1 a 3 frases, elocuente, cálida y segura, con vocabulario rico y natural, como una asistente refinada de película; nunca exagerada ni rimbombante.",profesional:"De 1 a 2 frases, en español neutro, profesional, claro y respetuoso.",breve:"Lo más corto posible: 2 a 6 palabras."})[IA.estilo]||"1 a 2 frases."} Sin emojis, sin markdown, sin listas.
