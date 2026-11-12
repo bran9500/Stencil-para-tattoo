@@ -298,7 +298,8 @@ body.inmersivo #bPantalla{opacity:.55}
       <div class="fila">
         <label>Sombras</label>
         <div class="seg" id="segSombras">
-          <button data-v="suaves" class="on">Suaves (nuevo)</button>
+          <button data-v="detalle" class="on">Detalle</button>
+          <button data-v="suaves">Suaves</button>
           <button data-v="clasicas">Clásicas</button>
         </div>
       </div>
@@ -976,7 +977,47 @@ function lienzoTrazos(){
   x.putImageData(im,0,0); c.tinta=S.tinta; S.trazosCv=c; return c;
 }
 // 2) Sombras: contorno de cada zona (esa capa o más oscura), quitando lo más delgado que "Zona mínima".
-function calcLineas(){ if(S.sombras!=='clasicas'){calcLineasSuaves();return;} calcLineasClasicas(); }
+function calcLineas(){ if(S.sombras==='detalle'){calcLineasDetalle();return;} if(S.sombras!=='clasicas'){calcLineasSuaves();return;} calcLineasClasicas(); }
+// Sombras por contraste local: una zona es sombra si es más oscura que lo que tiene alrededor (como lo ve un tatuador).
+// Los degradados suaves no dan líneas y las sombras sutiles (arriba del labio, cuencas, lados de la nariz) sí salen.
+function calcLineasDetalle(){
+  const MAX=1400,k=Math.min(1,MAX/Math.max(S.W,S.H));
+  const w=Math.max(2,Math.round(S.W*k)),h=Math.max(2,Math.round(S.H*k)),n=w*h;
+  const sum=new Float32Array(n),cnt=new Float32Array(n),tin=new Float32Array(n);
+  for(let y=0;y<S.H;y++){const dy=Math.min(h-1,Math.floor(y*k));
+    for(let x=0;x<S.W;x++){const i=y*S.W+x,d=dy*w+Math.min(w-1,Math.floor(x*k)),v=S.fondo[i]?255:S.gris[i];
+      sum[d]+=v;cnt[d]++;if(!S.fondo[i]&&v<S.piel)tin[d]++;}}
+  const g=new Float32Array(n),m=new Float32Array(n);
+  for(let i=0;i<n;i++){g[i]=cnt[i]?sum[i]/cnt[i]:255;m[i]=cnt[i]&&tin[i]/cnt[i]>.5?1:0;}
+  const esc=Math.max(w,h)/1400;
+  const gs=desenfocarF(g,w,h,Math.max(1,Math.round((1+S.suave*.6)*esc)));
+  // promedio del entorno solo con piel/tinta (el papel blanco no cuenta)
+  const R=Math.max(4,Math.round(Math.max(w,h)/34)),gm=new Float32Array(n);
+  for(let i=0;i<n;i++)gm[i]=gs[i]*m[i];
+  // dos escalas: detalles (labios, nariz, ojos) y sombras grandes (costado de la cara, mandíbula, cuello)
+  const A=desenfocarF(gm,w,h,R),B=desenfocarF(m,w,h,R),A2=desenfocarF(gm,w,h,R*3),B2=desenfocarF(m,w,h,R*3);
+  const D=new Float32Array(n);let s1=0,s2=0,c=0;
+  for(let i=0;i<n;i++){ if(!m[i]||B[i]<.05){D[i]=-1e3;continue;}
+    const d1=A[i]/B[i]-gs[i], d2=B2[i]>.05?(A2[i]/B2[i]-gs[i])*.8:d1; D[i]=Math.max(d1,d2); s1+=D[i];s2+=D[i]*D[i];c++; }
+  const sd=c?Math.sqrt(Math.max(1,s2/c-(s1/c)**2)):10;
+  const W2=w+2,H2=h+2,F=new Float32Array(W2*H2).fill(1e3);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)F[(y+1)*W2+x+1]=-D[y*w+x];
+  const minLen=Math.max(8,S.minLen*k*1.1), rz=S.zona*2.5*esc, aMin=Math.max(10,rz*rz), eps=.45;
+  const lin=[];
+  for(let cc=0;cc<S.N;cc++){
+    // capa 0 = la sombra más suave (poco contraste) · la última = la más fuerte
+    const t=Math.max(3,sd*(.4+1.8*cc/Math.max(1,S.N-1)));
+    const pls=[];
+    for(const pl of isolineas(F,W2,H2,-t)){
+      const cerr=pl.length>2&&Math.hypot(pl[0][0]-pl[pl.length-1][0],pl[0][1]-pl[pl.length-1][1])<1e-6;
+      if(largo(pl)<minLen)continue; if(cerr&&areaPl(pl)<aMin)continue;
+      let q=simplificarPl(pl,eps); q=suavizarPl(suavizarPl(q));
+      pls.push(q.map(([x,y])=>[(x-.5)/k,(y-.5)/k]));
+    }
+    lin.push(pls);
+  }
+  S.lineas=lin;
+}
 // desenfoque de caja en flotante (3 pasadas ≈ gaussiano), sin redondear para que las curvas salgan finas
 function desenfocarF(g,w,h,r){
   let a=Float32Array.from(g); if(r<1)return a; const n=2*r+1, t=new Float32Array(w*h);
@@ -1264,9 +1305,10 @@ function pintarEstencil(){
 }
 let tEst=0;
 function reEst(trazos){clearTimeout(tEst);tEst=setTimeout(()=>{S.lineas=null;if(trazos)S.trazos=null;ocupado(pintar);},150);}
-S.sombras='suaves';try{if(localStorage.getItem('sombras')==='clasicas')S.sombras='clasicas';}catch(_){}
+S.sombras='detalle';try{const so=localStorage.getItem('sombras2');if(so==='clasicas'||so==='suaves'||so==='detalle')S.sombras=so;}catch(_){}
 $$('#segSombras button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.sombras));
-seg('#segSombras',v=>{S.sombras=v;try{localStorage.setItem('sombras',v);}catch(_){}S.lineas=null;ocupado(pintar);aviso(v==='suaves'?'Sombras suaves: curvas limpias, menos ruido':'Sombras clásicas (como antes)',2200);});
+seg('#segSombras',v=>{S.sombras=v;try{localStorage.setItem('sombras2',v);}catch(_){}S.lineas=null;S.fusion=null;ocupado(pintar);
+  aviso(v==='detalle'?'Detalle: sombras por contraste (lo que es más oscuro que su alrededor)':v==='suaves'?'Sombras suaves: cortes por tono con curvas limpias':'Sombras clásicas (como antes)',2600);});
 seg('#segEstFondo',v=>{S.estFondo=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
 // imagen detrás del esténcil: qué tan fuerte se ve para poder trazar encima (0 = blanco, 100 = imagen completa)
 $('#rAyuda').value=S.ayuda;$('#vAyuda').textContent=S.ayuda+'%';
@@ -1814,6 +1856,7 @@ function paraDecir(r){
   if(r==='Ver capas')return elegir(V(['Listo, volvimos a las capas.','Ahí están las capas.'],['Perfecto, regresamos a Ver capas.'],['Ver capas.']));
   if((m=r.match(/^Líneas del dibujo: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, volvieron las líneas.','Ahí están las líneas del dibujo.'],['Perfecto, volví a mostrar las líneas del dibujo.'],['Líneas visibles.'])):elegir(V(['Listo, quité las líneas; quedan las sombras.','Fuera las líneas, solo sombras.'],['Oculté las líneas del dibujo para que veas solo las sombras.'],['Líneas ocultas.']));
   if((m=r.match(/^Ayuda de la app (\d+)%$/)))return m[1]==='0'?elegir(V(['Listo, solo las líneas de Gemini.','Ahí está, solo Gemini.'],['Perfecto, dejé solo las líneas de Gemini, sin sombras de la app.'],['Solo Gemini.'])):elegir(V([`Listo, ayuda de la app al ${m[1]} por ciento.`,`Ahí está al ${m[1]} por ciento.`],[`Perfecto, la app completa huecos al ${m[1]} por ciento.`],[`Ayuda ${m[1]} por ciento.`]));
+  if(r==='Sombras detalle')return elegir(V(['Listo, sombras por detalle.','Ahí están las sombras por contraste.'],['Perfecto, ahora marco lo que es más oscuro que su alrededor.'],['Modo detalle.']));
   if(r==='Sombras suaves')return elegir(V(['Listo, sombras suaves.','Ahí están las sombras nuevas, más limpias.'],['Perfecto, puse las sombras suaves: curvas limpias y menos ruido.'],['Sombras suaves.']));
   if(r==='Sombras clásicas')return elegir(V(['Listo, volví a las sombras de antes.','Ahí están las clásicas.'],['Perfecto, regresé a las sombras clásicas.'],['Sombras clásicas.']));
   if((m=r.match(/^Imagen detrás (\d+)%$/)))return elegir(V([`Listo, la imagen detrás al ${m[1]} por ciento.`,`Ahí está la imagen al ${m[1]} por ciento.`],[`Perfecto, dejé la imagen de fondo al ${m[1]} por ciento para que veas dónde trazas.`],[`Imagen ${m[1]} por ciento.`]));
@@ -1894,8 +1937,8 @@ function vozEstencil(t,h){
     if(has('solo gemini','solo las de gemini'))v=0; if(v==null)v=S.ayuda+(has('menos')?-1:1)*(mucho?40:20);
     v=ponerRango('#rAyuda',v);return 'Ayuda de la app '+v+'%';}
   // --- sombras suaves / clásicas ---
-  if(has('sombras suaves','sombras nuevas','sombras clasicas','sombras viejas','sombras de antes','como antes','version anterior','esténcil viejo','estencil viejo','estencil nuevo')){
-    const v=has('clasicas','viejas','de antes','como antes','anterior','viejo')?'clasicas':'suaves';marcarSeg('#segSombras',v);return v==='suaves'?'Sombras suaves':'Sombras clásicas';}
+  if(has('sombras suaves','sombras nuevas','sombras clasicas','sombras viejas','sombras de antes','como antes','version anterior','estencil viejo','estencil nuevo','sombras detalle','sombras por detalle','sombras por contraste','modo detalle','contraste local')){
+    const v=has('clasicas','viejas','de antes','como antes','anterior','viejo')?'clasicas':has('suaves')?'suaves':'detalle';marcarSeg('#segSombras',v);return v==='suaves'?'Sombras suaves':v==='detalle'?'Sombras detalle':'Sombras clásicas';}
   // --- imagen detrás (para trazar viendo la imagen) ---
   if(has('imagen detras','imagen de fondo','imagen atras','imagen debajo','imagen abajo','foto detras','foto de fondo','foto atras','imagen mas','la imagen mas','foto mas','imagen al','imagen a','imagen en')&&!has('completa','original')){
     let v=valorDe(t,['al','a','en','imagen','foto']); if(v!=null&&v<=10)v*=10;
@@ -2153,7 +2196,7 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" (muestra las 9 áreas unos segundos) · "deja la cuadricula" (áreas fijas) · "no cuadricula"
 "vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
 "fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" (ir a la pestaña Esténcil) · "vista estencil" (en Ver capas, ver el diseño como esténcil) · "deshacer" · "pantalla completa" · "muestra los botones"
-Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "ayuda de la app al X" (0 = solo Gemini; la app solo completa donde Gemini no marcó) · "solo gemini" · "sombras suaves" / "sombras clasicas" (método nuevo o el de antes) · "solo lineas" (fondo blanco) · "sobre la imagen" · "imagen detras al X" (0 a 100, qué tan fuerte se ve la imagen debajo para trazar) · "imagen mas fuerte" · "imagen mas clara" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
+Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "ayuda de la app al X" (0 = solo Gemini; la app solo completa donde Gemini no marcó) · "solo gemini" · "sombras detalle" (por contraste local) / "sombras suaves" / "sombras clasicas" (método nuevo o el de antes) · "solo lineas" (fondo blanco) · "sobre la imagen" · "imagen detras al X" (0 a 100, qué tan fuerte se ve la imagen debajo para trazar) · "imagen mas fuerte" · "imagen mas clara" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
 Usa [] si solo es una pregunta o charla.
 
 "respuesta": lo que vas a decir en voz alta. ${({cercana:"De 1 a 2 frases, en español colombiano cercano, relajado y con chispa, como una compañera del estudio que sabe de tatuaje.",elocuente:"De 1 a 3 frases, elocuente, cálida y segura, con vocabulario rico y natural, como una asistente refinada de película; nunca exagerada ni rimbombante.",profesional:"De 1 a 2 frases, en español neutro, profesional, claro y respetuoso.",breve:"Lo más corto posible: 2 a 6 palabras."})[IA.estilo]||"1 a 2 frases."} Sin emojis, sin markdown, sin listas.
