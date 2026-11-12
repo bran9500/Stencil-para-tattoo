@@ -291,6 +291,13 @@ body.inmersivo #bPantalla{opacity:.55}
         <label>Sensibilidad</label>
         <input type="range" id="rSens" min="3" max="40" value="20"><span class="v" id="vSens">20</span>
       </div>
+      <div class="fila">
+        <label>Sombras</label>
+        <div class="seg" id="segSombras">
+          <button data-v="suaves" class="on">Suaves (nuevo)</button>
+          <button data-v="clasicas">Clásicas</button>
+        </div>
+      </div>
       <div class="nota" style="margin:2px 0 8px">Sombras (cada capa marca dónde empieza ese tono):</div>
       <div id="estCapas"></div>
       <div class="fila">
@@ -559,7 +566,7 @@ function prepararImagen(img,tol){
   const d=x.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
   for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
   S.W=w;S.H=h;S.edits=[];if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.gemGros=2;if($('#rGemGros')){$('#rGemGros').value=2;$('#vGemGros').textContent='2';$('#filaGemGros').style.display='none';$('#filaGemRell').style.display='none';}S.fuente='auto';S.gris=g;
-  if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';}S.suave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
+  if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';}S.grisSuave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
   const cv=$('#cv');cv.width=w;cv.height=h;
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
   $('#titulo').textContent=S.nombre;
@@ -581,7 +588,7 @@ function girarImagen(modo){ // 'der' 90° a la derecha, 'izq' 90° a la izquierd
   for(const ed of S.edits||[])ed.pts=ed.pts.map(([x,y])=>Pc(x,y));
   if(S.gem){const G=S.gem,[cx,cy]=Pc(G.cx,G.cy),da=modo==='der'?Math.PI/2:modo==='izq'?-Math.PI/2:modo==='180'?Math.PI:0;
     if(modo==='espejo'){G.fx=!G.fx;G.r=-G.r;}else G.r+=da; G.cx=cx;G.cy=cy; limpiarGemCvs();}
-  S.W=W2;S.H=H2;S.gris=ng;S.suave=desenfocar(ng,W2,H2,2);
+  S.W=W2;S.H=H2;S.gris=ng;S.grisSuave=desenfocar(ng,W2,H2,2);
   S.lineas=null;S.trazos=null;S.trazosCv=null;S.lineasCv=null;
   if(typeof HIST!=='undefined')HIST.length=0;
   const cv=$('#cv');cv.width=W2;cv.height=H2;ajustarVista();
@@ -962,7 +969,58 @@ function lienzoTrazos(){
   x.putImageData(im,0,0); c.tinta=S.tinta; S.trazosCv=c; return c;
 }
 // 2) Sombras: contorno de cada zona (esa capa o más oscura), quitando lo más delgado que "Zona mínima".
-function calcLineas(){
+function calcLineas(){ if(S.sombras!=='clasicas'){calcLineasSuaves();return;} calcLineasClasicas(); }
+// desenfoque de caja en flotante (3 pasadas ≈ gaussiano), sin redondear para que las curvas salgan finas
+function desenfocarF(g,w,h,r){
+  let a=Float32Array.from(g); if(r<1)return a; const n=2*r+1, t=new Float32Array(w*h);
+  for(let pas=0;pas<3;pas++){
+    for(let y=0;y<h;y++){const row=y*w;let s=0;
+      for(let x=-r;x<=r;x++)s+=a[row+Math.min(w-1,Math.max(0,x))];
+      for(let x=0;x<w;x++){t[row+x]=s/n;s+=a[row+Math.min(w-1,x+r+1)]-a[row+Math.max(0,x-r)];}}
+    for(let x=0;x<w;x++){let s=0;
+      for(let y=-r;y<=r;y++)s+=t[Math.min(h-1,Math.max(0,y))*w+x];
+      for(let y=0;y<h;y++){a[y*w+x]=s/n;s+=t[Math.min(h-1,y+r+1)*w+x]-t[Math.max(0,y-r)*w+x];}}
+  }
+  return a;
+}
+function areaPl(pl){let s=0;for(let i=0,j=pl.length-1;i<pl.length;j=i++)s+=(pl[j][0]+pl[i][0])*(pl[j][1]-pl[i][1]);return Math.abs(s/2);}
+function simplificarPl(pl,eps){ // Douglas-Peucker
+  if(pl.length<3)return pl; const keep=new Uint8Array(pl.length);keep[0]=keep[pl.length-1]=1;const pila=[[0,pl.length-1]];
+  while(pila.length){const [a,b]=pila.pop();let dm=0,im=-1;const [ax,ay]=pl[a],[bx,by]=pl[b],dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),pt=L<1e-6;
+    for(let i=a+1;i<b;i++){const d=pt?Math.hypot(pl[i][0]-ax,pl[i][1]-ay):Math.abs(dy*pl[i][0]-dx*pl[i][1]+bx*ay-by*ax)/L;if(d>dm){dm=d;im=i;}}
+    if(dm>eps){keep[im]=1;pila.push([a,im],[im,b]);}}
+  return pl.filter((_,i)=>keep[i]);
+}
+// Sombras nuevas: se suaviza el gris primero y el límite de cada tono se traza como curva (no por píxeles)
+function calcLineasSuaves(){
+  const MAX=1400,k=Math.min(1,MAX/Math.max(S.W,S.H));
+  const w=Math.max(2,Math.round(S.W*k)),h=Math.max(2,Math.round(S.H*k));
+  const sum=new Float32Array(w*h),cnt=new Float32Array(w*h);
+  for(let y=0;y<S.H;y++){const dy=Math.min(h-1,Math.floor(y*k));
+    for(let x=0;x<S.W;x++){const i=y*S.W+x,d=dy*w+Math.min(w-1,Math.floor(x*k));
+      sum[d]+=S.fondo[i]?255:Math.min(S.gris[i],S.piel+8);cnt[d]++;}}
+  for(let i=0;i<sum.length;i++)sum[i]=cnt[i]?sum[i]/cnt[i]:255;
+  const esc=w/1100, r=Math.max(1,Math.round((1+S.suave*.9)*esc));
+  const g=desenfocarF(sum,w,h,r);
+  const W2=w+2,H2=h+2,F=new Float32Array(W2*H2).fill(255);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)F[(y+1)*W2+x+1]=g[y*w+x];
+  const minLen=Math.max(6,S.minLen*k*1.2), rz=S.zona*3*esc, aMin=Math.max(8,rz*rz), eps=.45;
+  const lin=[];
+  for(let c=0;c<S.N;c++){
+    const t=c===0?S.piel:S.cortes[S.N-1-c];
+    const pls=[];
+    for(const pl of isolineas(F,W2,H2,t)){
+      const cerr=pl.length>2&&Math.hypot(pl[0][0]-pl[pl.length-1][0],pl[0][1]-pl[pl.length-1][1])<1e-6;
+      if(largo(pl)<minLen)continue;
+      if(cerr&&areaPl(pl)<aMin)continue;
+      let q=simplificarPl(pl,eps); q=suavizarPl(suavizarPl(q));
+      pls.push(q.map(([x,y])=>[(x-1)/k,(y-1)/k]));
+    }
+    lin.push(pls);
+  }
+  S.lineas=lin;
+}
+function calcLineasClasicas(){
   const MAX=1100,k=Math.min(1,MAX/Math.max(S.W,S.H));
   const w=Math.max(2,Math.round(S.W*k)),h=Math.max(2,Math.round(S.H*k));
   const cap=new Uint8Array(w*h);
@@ -1176,6 +1234,9 @@ function pintarEstencil(){
 }
 let tEst=0;
 function reEst(trazos){clearTimeout(tEst);tEst=setTimeout(()=>{S.lineas=null;if(trazos)S.trazos=null;ocupado(pintar);},150);}
+S.sombras='suaves';try{if(localStorage.getItem('sombras')==='clasicas')S.sombras='clasicas';}catch(_){}
+$$('#segSombras button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.sombras));
+seg('#segSombras',v=>{S.sombras=v;try{localStorage.setItem('sombras',v);}catch(_){}S.lineas=null;ocupado(pintar);aviso(v==='suaves'?'Sombras suaves: curvas limpias, menos ruido':'Sombras clásicas (como antes)',2200);});
 seg('#segEstFondo',v=>{S.estFondo=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
 // imagen detrás del esténcil: qué tan fuerte se ve para poder trazar encima (0 = blanco, 100 = imagen completa)
 function ponerOpImg(v){S.opImg=v/100;$('#rOpImg').value=v;$('#vOpImg').textContent=v+'%';try{localStorage.setItem('opImg',v);}catch(_){}}
@@ -1311,12 +1372,26 @@ function lienzoLineasBase(){
   if(usarGem) x.drawImage(gemGrueso(),0,0);
   return c;
 }
+function trazarCurvas(x,curvas,ancho){ if(!curvas||!curvas.length)return;
+  x.save();x.strokeStyle='#000';x.lineWidth=ancho;x.lineCap='round';x.lineJoin='round';x.beginPath();
+  for(const pl of curvas){x.moveTo(pl[0][0],pl[0][1]);for(let i=1;i<pl.length;i++)x.lineTo(pl[i][0],pl[i][1]);}
+  x.stroke();x.restore();}
 function gemManchas(G){ // zonas negras gruesas de Gemini: borde (para dibujar) e interior (para quitar)
   if(G.manchas)return G.manchas;
   const {w,h,mask}=G,M=Math.max(w,h),rr=Math.max(4,Math.round(M/220)),lw=Math.max(1,Math.round(M/900));
-  const blob=dilatar(erosionar(mask,w,h,rr),w,h,rr), inner=erosionar(blob,w,h,lw);
-  const borde=new Uint8Array(w*h);let n=0;for(let i=0;i<borde.length;i++)if(blob[i]&&!inner[i]){borde[i]=1;}else if(inner[i])n++;
-  return G.manchas={borde,inner,hay:n>0};
+  const blob0=dilatar(erosionar(mask,w,h,rr),w,h,rr);
+  // redondear la mancha: desenfocar y volver a cortar, así no quedan esquinas cuadradas
+  const f=new Float32Array(w*h);for(let i=0;i<f.length;i++)f[i]=blob0[i]?0:255;
+  const fs=desenfocarF(f,w,h,Math.max(2,Math.round(rr*.6)));
+  const blob=new Uint8Array(w*h);for(let i=0;i<blob.length;i++)blob[i]=fs[i]<127.5?1:0;
+  const inner=erosionar(blob,w,h,lw);
+  let n=0;for(let i=0;i<inner.length;i++)if(inner[i])n++;
+  // borde como curva vectorial
+  const W2=w+2,H2=h+2,F=new Float32Array(W2*H2).fill(255);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)F[(y+1)*W2+x+1]=fs[y*w+x];
+  const curvas=n?isolineas(F,W2,H2,127.5).filter(pl=>largo(pl)>rr*2).map(pl=>suavizarPl(suavizarPl(simplificarPl(pl,.5))).map(([x,y])=>[x-1,y-1])):[];
+  const borde=new Uint8Array(w*h);
+  return G.manchas={borde,inner,curvas,lw,hay:n>0};
 }
 function gemLienzoGrosor(){ // líneas de Gemini con grosor uniforme (0 = original)
   const G=S.gem,g=S.gemGros||0,sb=!!S.sinBloques;
@@ -1327,10 +1402,11 @@ function gemLienzoGrosor(){ // líneas de Gemini con grosor uniforme (0 = origin
   const clave=g+(sb?'s':'');
   if(G.cvs[clave])return G.cvs[clave];
   if(!g){ // original, pero las manchas quedan huecas
-    const {inner}=gemManchas(G),m=new Uint8Array(w*h);for(let i=0;i<m.length;i++)m[i]=mask[i]&&!inner[i]?1:0;
-    return G.cvs[clave]=aLienzo(m);}
+    const {inner,curvas,lw}=gemManchas(G),m=new Uint8Array(w*h);for(let i=0;i<m.length;i++)m[i]=mask[i]&&!inner[i]?1:0;
+    const cv=aLienzo(m);trazarCurvas(cv.getContext('2d'),curvas,Math.max(1.3,lw*1.6));return G.cvs[clave]=cv;}
   if(!G.esq)G.esq=adelgazar(mask,w,h);
-  if(sb&&!G.esqSbCv){const {borde,inner}=gemManchas(G),m=new Uint8Array(w*h);for(let i=0;i<m.length;i++)m[i]=(G.esq[i]&&!inner[i])||borde[i]?1:0;G.esqSbCv=aLienzo(m);}
+  if(sb&&!G.esqSbCv){const {inner,curvas}=gemManchas(G),m=new Uint8Array(w*h);for(let i=0;i<m.length;i++)m[i]=G.esq[i]&&!inner[i]?1:0;
+    const cv=aLienzo(m),x=cv.getContext('2d');trazarCurvas(x,curvas,1.3);G.esqSbCv=cv;}
   if(!G.esqCv)G.esqCv=aLienzo(G.esq);
   // solo manchas realmente grandes (pupilas, negros sólidos) se conservan como relleno
   if(!sb&&S.gemRelleno&&!G.rellCv){const rr=Math.max(5,Math.round(Math.max(w,h)/110));G.rellCv=aLienzo(dilatar(erosionar(mask,w,h,rr),w,h,rr));}
@@ -1626,6 +1702,8 @@ function paraDecir(r){
   if((m=r.match(/^Estilo capas? (.*): (.*)$/)))return elegir(V([`Listo, la ${listaPal(m[1])} ahora va en ${m[2]}.`,`Hecho, ${m[2]} para la ${listaPal(m[1])}.`],[`Perfecto, la ${listaPal(m[1])} quedó con trazo de ${m[2]}.`],[`${cap1(m[2])}.`]));
   if(r==='Ver capas')return elegir(V(['Listo, volvimos a las capas.','Ahí están las capas.'],['Perfecto, regresamos a Ver capas.'],['Ver capas.']));
   if((m=r.match(/^Líneas del dibujo: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, volvieron las líneas.','Ahí están las líneas del dibujo.'],['Perfecto, volví a mostrar las líneas del dibujo.'],['Líneas visibles.'])):elegir(V(['Listo, quité las líneas; quedan las sombras.','Fuera las líneas, solo sombras.'],['Oculté las líneas del dibujo para que veas solo las sombras.'],['Líneas ocultas.']));
+  if(r==='Sombras suaves')return elegir(V(['Listo, sombras suaves.','Ahí están las sombras nuevas, más limpias.'],['Perfecto, puse las sombras suaves: curvas limpias y menos ruido.'],['Sombras suaves.']));
+  if(r==='Sombras clásicas')return elegir(V(['Listo, volví a las sombras de antes.','Ahí están las clásicas.'],['Perfecto, regresé a las sombras clásicas.'],['Sombras clásicas.']));
   if((m=r.match(/^Imagen detrás (\d+)%$/)))return elegir(V([`Listo, la imagen detrás al ${m[1]} por ciento.`,`Ahí está la imagen al ${m[1]} por ciento.`],[`Perfecto, dejé la imagen de fondo al ${m[1]} por ciento para que veas dónde trazas.`],[`Imagen ${m[1]} por ciento.`]));
   if((m=r.match(/^Imagen detrás: (sí|no)$/)))return m[1]==='sí'?elegir(V(['Listo, puse la imagen detrás del esténcil.','Ahí está la imagen debajo.'],['Perfecto, ahora ves la imagen detrás de las líneas.'],['Imagen detrás.'])):elegir(V(['Listo, quité la imagen de atrás.','Fuera la imagen, solo líneas.'],['Perfecto, dejé solo las líneas del esténcil.'],['Sin imagen.']));
   if((m=r.match(/^Opacidad líneas (\d+)%$/)))return elegir(V([`Listo, líneas al ${m[1]} por ciento.`,`Ahí las dejé al ${m[1]} por ciento.`],[`Perfecto, las líneas quedaron al ${m[1]} por ciento de opacidad.`],[`Opacidad ${m[1]} por ciento.`]));
@@ -1697,6 +1775,9 @@ function vozEstencil(t,h){
     if(has('solo','solamente','unicamente','nada mas','dejame ver','deja ver','ver la','ver las','ver solo','ensename','muestrame'))S.estIncl=S.estIncl.map((_,k)=>capas.includes(k+1));
     else capas.forEach(n=>S.estIncl[n-1]=true);};
   const fin=msg=>{dibujarEstCapas();pintar();return msg;};
+  // --- sombras suaves / clásicas ---
+  if(has('sombras suaves','sombras nuevas','sombras clasicas','sombras viejas','sombras de antes','como antes','version anterior','esténcil viejo','estencil viejo','estencil nuevo')){
+    const v=has('clasicas','viejas','de antes','como antes','anterior','viejo')?'clasicas':'suaves';marcarSeg('#segSombras',v);return v==='suaves'?'Sombras suaves':'Sombras clásicas';}
   // --- imagen detrás (para trazar viendo la imagen) ---
   if(has('imagen detras','imagen de fondo','imagen atras','imagen debajo','imagen abajo','foto detras','foto de fondo','foto atras','imagen mas','la imagen mas','foto mas','imagen al','imagen a','imagen en')&&!has('completa','original')){
     let v=valorDe(t,['al','a','en','imagen','foto']); if(v!=null&&v<=10)v*=10;
@@ -1954,7 +2035,7 @@ Responde SIEMPRE solo con un objeto JSON, sin nada más: {"acciones":[...],"resp
 "derecha" · "izquierda" · "arriba" · "abajo" (mover la vista) · "completa" (ver todo) · "cuadricula" (muestra las 9 áreas unos segundos) · "deja la cuadricula" (áreas fijas) · "no cuadricula"
 "vista real" · "vista gris" · "vista guia" · "vista original" · "lineas" (vista esténcil)
 "fantasma si" · "fantasma no" · "contorno si" · "contorno no" · "ver capas" · "ver estencil" (ir a la pestaña Esténcil) · "vista estencil" (en Ver capas, ver el diseño como esténcil) · "deshacer" · "pantalla completa" · "muestra los botones"
-Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "solo lineas" (fondo blanco) · "sobre la imagen" · "imagen detras al X" (0 a 100, qué tan fuerte se ve la imagen debajo para trazar) · "imagen mas fuerte" · "imagen mas clara" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
+Esténcil: "grosor capa N mas" · "grosor capa N menos" · "grosor capa N a X" · "estilo capa N puntos" (o intermitente, fina, continua, relleno) · "sombras suaves" / "sombras clasicas" (método nuevo o el de antes) · "solo lineas" (fondo blanco) · "sobre la imagen" · "imagen detras al X" (0 a 100, qué tan fuerte se ve la imagen debajo para trazar) · "imagen mas fuerte" · "imagen mas clara" · "lineas del dibujo si" · "lineas del dibujo no" · "grosor lineas mas" · "grosor lineas menos" · "opacidad lineas a X" · "grosor gemini a X" · "rellenos gemini si" · "rellenos gemini no" · "lineas de la app" · "lineas de gemini" · "lineas ambas" · "tinta morado" (o rojo, negro, por capa) · "sensibilidad mas" · "sensibilidad menos" · "guardar estencil"
 Usa [] si solo es una pregunta o charla.
 
 "respuesta": lo que vas a decir en voz alta. ${({cercana:"De 1 a 2 frases, en español colombiano cercano, relajado y con chispa, como una compañera del estudio que sabe de tatuaje.",elocuente:"De 1 a 3 frases, elocuente, cálida y segura, con vocabulario rico y natural, como una asistente refinada de película; nunca exagerada ni rimbombante.",profesional:"De 1 a 2 frases, en español neutro, profesional, claro y respetuoso.",breve:"Lo más corto posible: 2 a 6 palabras."})[IA.estilo]||"1 a 2 frases."} Sin emojis, sin markdown, sin listas.
