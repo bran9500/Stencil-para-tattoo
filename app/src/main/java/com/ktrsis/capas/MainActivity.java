@@ -65,6 +65,8 @@ public class MainActivity extends Activity {
     private long ultimoNivel = 0;
     private TextToSpeech tts;
     private boolean ttsListo, hablandoTts;
+    private String ttsVozGuardada = "";
+    private float ttsVelGuardada = 1f, ttsTonoGuardado = 1f;
     private MediaPlayer reproductor;
     private final Handler manejador = new Handler(Looper.getMainLooper());
 
@@ -86,6 +88,7 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override public void onPageFinished(WebView v, String url) {
                 paginaLista = true;
+                if (ttsListo) js("window.ttsLista&&ttsLista()");
                 if (compartidaPendiente != null) { abrirCompartida(compartidaPendiente); compartidaPendiente = null; }
             }
         });
@@ -309,9 +312,21 @@ public class MainActivity extends Activity {
                 @Override public void onError(String id) { runOnUiThread(() -> { hablandoTts = false; if (escuchando) reiniciarVoz(250); }); }
             });
             ttsListo = true;
+            aplicarTtsGuardado();
             evento("tts", "lista");
             js("window.ttsLista&&ttsLista()");
         });
+    }
+
+    /** Aplica la voz, velocidad y tono que eligió el usuario (también si la app web los mandó antes de que la voz estuviera lista). */
+    private void aplicarTtsGuardado() {
+        if (!ttsListo) return;
+        try {
+            if (!ttsVozGuardada.isEmpty() && tts.getVoices() != null)
+                for (android.speech.tts.Voice v : tts.getVoices()) if (v.getName().equals(ttsVozGuardada)) { tts.setVoice(v); break; }
+            tts.setSpeechRate(ttsVelGuardada);
+            tts.setPitch(ttsTonoGuardado);
+        } catch (Exception e) { evento("tts", e.toString()); }
     }
 
     private void reproducir(File audio) {
@@ -418,13 +433,10 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void configTts(String nombre, float velocidad, float tono) {
             runOnUiThread(() -> {
-                if (!ttsListo) return;
-                try {
-                    if (nombre != null && !nombre.isEmpty() && tts.getVoices() != null)
-                        for (android.speech.tts.Voice v : tts.getVoices()) if (v.getName().equals(nombre)) { tts.setVoice(v); break; }
-                    tts.setSpeechRate(velocidad > 0 ? velocidad : 1f);
-                    tts.setPitch(tono > 0 ? tono : 1f);
-                } catch (Exception e) { evento("tts", e.toString()); }
+                ttsVozGuardada = nombre == null ? "" : nombre;
+                ttsVelGuardada = velocidad > 0 ? velocidad : 1f;
+                ttsTonoGuardado = tono > 0 ? tono : 1f;
+                aplicarTtsGuardado();
             });
         }
 
@@ -516,6 +528,48 @@ public class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
                 catch (Exception e) { Toast.makeText(MainActivity.this, "No se pudo abrir", Toast.LENGTH_SHORT).show(); }
             });
+        }
+
+        /** Guarda cualquier archivo (por ejemplo el PSD) en Descargas › Capas y abre el menú para compartirlo. */
+        @JavascriptInterface
+        public boolean guardarArchivo(String base64, String nombre, String tipo) {
+            try {
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                ContentResolver cr = getContentResolver();
+                Uri u;
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues cv = new ContentValues();
+                    cv.put(MediaStore.Downloads.DISPLAY_NAME, nombre);
+                    cv.put(MediaStore.Downloads.MIME_TYPE, tipo);
+                    cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Capas");
+                    cv.put(MediaStore.Downloads.IS_PENDING, 1);
+                    u = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                    if (u == null) return false;
+                    try (OutputStream o = cr.openOutputStream(u)) { o.write(bytes); }
+                    cv.clear();
+                    cv.put(MediaStore.Downloads.IS_PENDING, 0);
+                    cr.update(u, cv, null, null);
+                } else {
+                    File dir = new File(getExternalFilesDir(null), "Capas"); dir.mkdirs();
+                    File f = new File(dir, nombre);
+                    try (FileOutputStream o = new FileOutputStream(f)) { o.write(bytes); }
+                    return true;
+                }
+                final Uri compartir = u;
+                runOnUiThread(() -> {
+                    try {
+                        Intent i = new Intent(Intent.ACTION_SEND);
+                        i.setType(tipo);
+                        i.putExtra(Intent.EXTRA_STREAM, compartir);
+                        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(Intent.createChooser(i, "Enviar PSD a…"));
+                    } catch (Exception ignored) {}
+                });
+                return true;
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Error al guardar: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                return false;
+            }
         }
 
         /** Guarda un PNG (en base64) en Galería › Pictures/Capas. */

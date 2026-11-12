@@ -351,6 +351,7 @@ body.inmersivo #bPantalla{opacity:.55}
     <button class="big" data-op="1">Capas transparentes<small>Para apilar en Procreate o Ibis Paint</small></button>
     <button class="big" data-op="2">Guías<small>Rosado = sin tinta, gris plano = donde va la capa</small></button>
     <button class="big" data-op="3">Las dos</button>
+    <button class="big" data-op="psd">Archivo PSD para Procreate<small>Todas las capas alineadas en un solo archivo (tonos + esténcil + original)</small></button>
   </div>
 </div>
 
@@ -2462,6 +2463,7 @@ function llenarVoces(){
   $('#selVozTts').value=IA.vozTts||'';
 }
 window.ttsLista=()=>{aplicarTts();};
+aplicarTts();setTimeout(aplicarTts,1500);
 const FRASES_PRUEBA={cercana:'Hola Bran, ¿qué más? Ya te dejé la capa dos lista para que le metas.',elocuente:'Hola, Bran. Ya dejé visible la capa dos; cuando quieras, avanzamos con las sombras medias.',
   profesional:'Listo. La capa dos está visible.',breve:'Capa dos lista.'};
 $('#selEstilo').onchange=e=>{IA.estilo=e.target.value;IA.hist=[];guardarIA();decir(FRASES_PRUEBA[IA.estilo]);};
@@ -2571,7 +2573,7 @@ $('#bPantalla').onclick=()=>pantallaCompleta(!document.body.classList.contains('
 /* ---------- guardar ---------- */
 $('#bGuardar').onclick=()=>$('#menuG').classList.remove('hide');
 $('#menuG').onclick=e=>{ if(e.target.id==='menuG')$('#menuG').classList.add('hide'); };
-$$('#menuG [data-op]').forEach(b=>b.onclick=()=>{$('#menuG').classList.add('hide');guardarTodo(b.dataset.op);});
+$$('#menuG [data-op]').forEach(b=>b.onclick=()=>{$('#menuG').classList.add('hide');if(b.dataset.op==='psd')guardarPSD();else guardarTodo(b.dataset.op);});
 function guardarTodo(op){
   ocupado(()=>{
     const nom=nombresCapas(S.N);let n=0;
@@ -2604,6 +2606,104 @@ function guardar(nombre,canvas){
   const url=canvas.toDataURL('image/png');
   if(window.Android&&Android.guardarImagen){Android.guardarImagen(url.split(',')[1],nombre);return;}
   const a=document.createElement('a');a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+}
+
+/* ---------- PSD con todas las capas (para Procreate / Photoshop) ---------- */
+function packbitsFila(src,off,n,out){ // PackBits de una fila; devuelve bytes escritos
+  let o=out.n,i=0;
+  while(i<n){
+    let j=i+1; while(j<n&&j-i<128&&src[off+j]===src[off+i])j++;
+    if(j-i>=3){out.b[out.n++]=(257-(j-i))&255;out.b[out.n++]=src[off+i];i=j;continue;}
+    let k=i; // literal
+    while(k<n&&k-i<128){ if(k+2<n&&src[off+k]===src[off+k+1]&&src[off+k]===src[off+k+2])break; k++; }
+    out.b[out.n++]=k-i-1; for(let t=i;t<k;t++)out.b[out.n++]=src[off+t]; i=k;
+  }
+  return out.n-o;
+}
+function psdCanal(plano,w,h){ // canal comprimido RLE: [compresión][largos de filas][datos]
+  const out={b:new Uint8Array(2+h*2+h*(w+Math.ceil(w/128)+2)),n:2+h*2};
+  out.b[1]=1;
+  for(let y=0;y<h;y++){const L=packbitsFila(plano,y*w,w,out);out.b[2+y*2]=L>>8;out.b[3+y*2]=L&255;}
+  return out.b.subarray(0,out.n);
+}
+function psdCapaDesdeCanvas(cv,nombre,visible){
+  const W=cv.width,H=cv.height,d=cv.getContext('2d').getImageData(0,0,W,H).data;
+  let x0=W,y0=H,x1=-1,y1=-1;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(d[(y*W+x)*4+3]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
+  const capa={nombre,visible,top:0,left:0,bottom:0,right:0,canales:null};
+  if(x1<0)return capa;
+  const w=x1-x0+1,h=y1-y0+1,pl=[0,1,2,3].map(()=>new Uint8Array(w*h));
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const s=((y+y0)*W+x+x0)*4,t=y*w+x;pl[0][t]=d[s];pl[1][t]=d[s+1];pl[2][t]=d[s+2];pl[3][t]=d[s+3];}
+  Object.assign(capa,{top:y0,left:x0,bottom:y1+1,right:x1+1,canales:[[-1,psdCanal(pl[3],w,h)],[0,psdCanal(pl[0],w,h)],[1,psdCanal(pl[1],w,h)],[2,psdCanal(pl[2],w,h)]]});
+  return capa;
+}
+function crearPSD(W,H,capas,compuesto){ // capas: de abajo hacia arriba
+  const partes=[];let tam=0;
+  const B=n=>{const a=new Uint8Array(n);partes.push(a);tam+=n;return new DataView(a.buffer);};
+  const bytes=a=>{partes.push(a);tam+=a.length;};
+  const txt=s=>bytes(new Uint8Array([...s].map(c=>c.charCodeAt(0))));
+  let v=B(26);v.setUint32(0,0x38425053);v.setUint16(4,1);v.setUint16(12,3);v.setUint32(14,H);v.setUint32(18,W);v.setUint16(22,8);v.setUint16(24,3);
+  B(4);B(4); // modo de color e image resources vacíos
+  // registros de capas
+  const reg=[];let regTam=0;
+  const datos=[];let datosTam=0;
+  for(const c of capas){
+    const asc=c.nombre.normalize('NFD').replace(/[^\x20-\x7e]/g,'').slice(0,255);
+    const pas=new Uint8Array(Math.ceil((asc.length+1)/4)*4);pas[0]=asc.length;for(let i=0;i<asc.length;i++)pas[i+1]=asc.charCodeAt(i);
+    const nU=c.nombre.length,luniLen=4+nU*2+((nU*2)%4?4-(nU*2)%4:0);
+    const luni=new Uint8Array(12+luniLen),lv=new DataView(luni.buffer);
+    lv.setUint32(0,0x3842494D);lv.setUint32(4,0x6C756E69);lv.setUint32(8,luniLen);lv.setUint32(12,nU);
+    for(let i=0;i<nU;i++)lv.setUint16(16+i*2,c.nombre.charCodeAt(i));
+    const canales=c.canales||[[-1,new Uint8Array(2)],[0,new Uint8Array(2)],[1,new Uint8Array(2)],[2,new Uint8Array(2)]];
+    const extra=8+pas.length+luni.length;
+    const r=new Uint8Array(18+canales.length*6+12+4+extra),rv=new DataView(r.buffer);let p=0;
+    rv.setInt32(p,c.top);rv.setInt32(p+4,c.left);rv.setInt32(p+8,c.bottom);rv.setInt32(p+12,c.right);rv.setUint16(p+16,canales.length);p+=18;
+    for(const [id,dat] of canales){rv.setInt16(p,id);rv.setUint32(p+2,dat.length);p+=6;datos.push(dat);datosTam+=dat.length;}
+    rv.setUint32(p,0x3842494D);rv.setUint32(p+4,0x6E6F726D);r[p+8]=255;r[p+9]=0;r[p+10]=c.visible?8:10;r[p+11]=0;p+=12;
+    rv.setUint32(p,extra);p+=4;p+=8; // máscara y rangos de mezcla vacíos
+    r.set(pas,p);p+=pas.length;r.set(luni,p);
+    reg.push(r);regTam+=r.length;
+  }
+  let infoTam=2+regTam+datosTam;const pad=infoTam%2;infoTam+=pad;
+  v=B(8);v.setUint32(0,infoTam+4+4);v.setUint32(4,infoTam);
+  v=B(2);v.setInt16(0,capas.length);
+  reg.forEach(bytes);datos.forEach(bytes);if(pad)B(1);
+  B(4); // máscara global vacía
+  // imagen compuesta (RLE, 3 canales)
+  const cd=compuesto.getContext('2d').getImageData(0,0,W,H).data,pl=[0,1,2].map(k=>{const a=new Uint8Array(W*H);for(let i=0;i<a.length;i++)a[i]=cd[i*4+k];return a;});
+  const cs=pl.map(a=>psdCanal(a,W,H));
+  v=B(2);v.setUint16(0,1);
+  cs.forEach(c=>bytes(c.subarray(2,2+H*2)));cs.forEach(c=>bytes(c.subarray(2+H*2)));
+  const total=new Uint8Array(tam);let o=0;for(const a of partes){total.set(a,o);o+=a.length;}
+  return total;
+}
+function bytesABase64(u){let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
+function guardarPSD(){
+  ocupado(()=>{
+    const {W,H}=S,nom=nombresCapas(S.N),capas=[];
+    const fondo=document.createElement('canvas');fondo.width=W;fondo.height=H;const fx=fondo.getContext('2d');fx.fillStyle='#fff';fx.fillRect(0,0,W,H);
+    capas.push(psdCapaDesdeCanvas(fondo,'Fondo blanco',true));
+    const orig=document.createElement('canvas');orig.width=W;orig.height=H;
+    {const x=orig.getContext('2d'),im=x.createImageData(W,H),d=im.data;
+     for(let i=0,j=0;i<S.gris.length;i++,j+=4){if(S.fondo&&S.fondo[i])continue;d[j]=d[j+1]=d[j+2]=S.gris[i];d[j+3]=255;}
+     x.putImageData(im,0,0);}
+    capas.push(psdCapaDesdeCanvas(orig,'Original (referencia)',false));
+    for(let k=0;k<S.N;k++)capas.push(psdCapaDesdeCanvas(lienzoCapa(k,'transp'),`Capa ${k+1} - ${nom[k]}`,true));
+    let conEst=0;
+    try{
+      for(let k=0;k<S.N;k++){capas.push(psdCapaDesdeCanvas(lienzoEstencil(k,false),`Esténcil capa ${k+1} - ${nom[k]}`,false));conEst++;}
+      if(S.conLineas){capas.push(psdCapaDesdeCanvas(lienzoEstencil(-2,false),'Esténcil líneas',false));conEst++;}
+    }catch(e){conEst=0;}
+    const comp=document.createElement('canvas');comp.width=W;comp.height=H;const cx=comp.getContext('2d');
+    cx.drawImage(fondo,0,0);for(let k=0;k<S.N;k++)cx.drawImage(lienzoCapa(k,'transp'),0,0);
+    const psd=crearPSD(W,H,capas,comp),nombre=`${S.nombre}_capas.psd`;
+    if(window.Android&&Android.guardarArchivo){
+      const ok=Android.guardarArchivo(bytesABase64(psd),nombre,'image/vnd.adobe.photoshop');
+      if(ok)aviso(`PSD guardado en Descargas › Capas (${S.N} capas${conEst?' + esténcil':''}). Ábrelo en Procreate.`,5000);
+    }else{
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([psd],{type:'image/vnd.adobe.photoshop'}));a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+    }
+  });
 }
 </script>
 </body>
