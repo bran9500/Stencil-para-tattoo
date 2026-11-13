@@ -268,10 +268,17 @@ body.inmersivo #bPantalla{opacity:.55}
         <div class="seg" id="segHerr">
           <button data-v="ver" class="on">Mover</button>
           <button data-v="alinear" id="bAlinear" style="display:none">Alinear</button>
+          <button data-v="deformar" id="bDeformar" style="display:none">Deformar</button>
           <button data-v="lapiz">✏️ Lápiz</button>
           <button data-v="borrar">Borrador</button>
         </div>
         <button id="bEditDeshacer" style="padding:8px 10px">↶</button>
+      </div>
+      <div class="fila" id="filaDef" style="display:none">
+        <label style="min-width:auto">Tamaño</label>
+        <input type="range" id="rDefTam" min="15" max="400" value="90" style="flex:1"><span class="v" id="vDefTam">90</span>
+        <label style="min-width:auto">Fuerza</label>
+        <input type="range" id="rDefFuerza" min="10" max="100" value="60" style="flex:1"><span class="v" id="vDefFuerza">60%</span>
       </div>
       <div class="fila" id="filaAlin" style="display:none">
         <button id="bAlinReset" style="flex:1">Restablecer</button>
@@ -575,7 +582,7 @@ function prepararImagen(img,tol){
   const d=x.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
   for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
   S.W=w;S.H=h;S.edits=[];PROMPT_ACTUAL=PROMPT_GEMINI;if(typeof HIST!=='undefined')HIST.length=0;S.gem=null;S.gemGros=GEM_ORIG;if($('#rGemGros')){$('#rGemGros').value=GEM_ORIG;$('#vGemGros').textContent=GEM_ORIG+' orig';$('#filaGemGros').style.display='none';$('#filaGemRell').style.display='none';$('#filaAyuda').style.display='none';}S.fuente='auto';S.gris=g;
-  if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';}S.grisSuave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
+  if($('#filaFuente')){$('#filaFuente').style.display='none';$('#bAlinear').style.display='none';$('#bDeformar').style.display='none';}S.grisSuave=desenfocar(g,w,h,2);S.huecos=[];S.cortesManual=false;S.actual=0;
   const cv=$('#cv');cv.width=w;cv.height=h;
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
   $('#titulo').textContent=S.nombre;
@@ -763,7 +770,7 @@ function reprocesar(){clearTimeout(tReproc);tReproc=setTimeout(()=>{calcCapas(fa
 function ocupado(fn){$('#cargando').classList.remove('hide');setTimeout(()=>{try{fn();}finally{$('#cargando').classList.add('hide');}},30);}
 
 $$('.tabs button').forEach(b=>b.onclick=()=>{
-  if(S.herr==='alinear'&&b.dataset.tab!=='est'){S.herr='ver';$$('#segHerr button').forEach(x=>x.classList.toggle('on',x.dataset.v==='ver'));$('#filaAlin').style.display='none';mostrarAlin(false);}
+  if((S.herr==='alinear'||S.herr==='deformar')&&b.dataset.tab!=='est'){$('#filaDef').style.display='none';S.defCursor=null;if(S.defSucio){S.defSucio=false;actualizarMascaraGem();}S.herr='ver';$$('#segHerr button').forEach(x=>x.classList.toggle('on',x.dataset.v==='ver'));$('#filaAlin').style.display='none';mostrarAlin(false);}
   S.tab=b.dataset.tab; if(S.tab==='est')dibujarEstCapas(); setTimeout(pintar,0);
   $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
   $$('[data-pane]').forEach(p=>p.classList.toggle('hide',p.dataset.pane!==b.dataset.tab));
@@ -840,15 +847,22 @@ function cuadricula(on,segundos=0){
   const aImg=e=>{const r=L.getBoundingClientRect();return [(e.clientX-r.left-V.x)/V.s,(e.clientY-r.top-V.y)/V.s];};
   const editando=()=>S.tab==='est'&&(S.herr==='lapiz'||S.herr==='borrar');
   const alineando=()=>S.tab==='est'&&S.herr==='alinear'&&S.gem;
+  const deformando=()=>S.tab==='est'&&S.herr==='deformar'&&S.gem;
+  let defUlt=null;
   const repintar=()=>{if(!rafP)rafP=requestAnimationFrame(()=>{rafP=0;pintar();});};
   L.addEventListener('pointerdown',e=>{L.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     movido=false;ini=estado();
+    if(deformando()){
+      if(pts.size===1){guardarDef();defUlt=aImg(e);S.defCursor=defUlt;repintar();}
+      else if(defUlt){deshacerDef(true);defUlt=null;S.defCursor=null;}
+      return;}
     if(editando()){
       if(pts.size===1){trazo={tipo:S.herr==='lapiz'?'lapiz':'borrar',destino:S.destino,ancho:S.pincel,pts:[aImg(e)]};S.edits.push(trazo);repintar();}
       else if(trazo){S.edits.splice(S.edits.indexOf(trazo),1);trazo=null;repintar();}
     }});
   L.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(trazo&&pts.size===1){trazo.pts.push(aImg(e));repintar();return;}
+    if(defUlt&&pts.size===1){const p=aImg(e);if(Math.hypot(p[0]-defUlt[0],p[1]-defUlt[1])*V.s>=1.5){deformarGem(defUlt,p);defUlt=p;}S.defCursor=p;repintar();return;}
     if(alineando()){const a=estado(); if(ini&&a.n===ini.n){const G=S.gem,r=L.getBoundingClientRect();
         const px=(ini.cx-r.left-V.x)/V.s,py=(ini.cy-r.top-V.y)/V.s;
         let dr0=a.n>1?a.ang-ini.ang:0; if(dr0>Math.PI)dr0-=2*Math.PI; if(dr0<-Math.PI)dr0+=2*Math.PI;
@@ -866,6 +880,7 @@ function cuadricula(on,segundos=0){
     V.x=px-(px-V.x)*kk+(a.cx-ini.cx);V.y=py-(py-V.y)*kk+(a.cy-ini.cy);V.s=ns;aplicarVista();ini=a;});
   const fin=e=>{const tenia=pts.size;pts.delete(e.pointerId);
     if(trazo){trazo=null;repintar();ini=pts.size?estado():null;return;}
+    if(defUlt){defUlt=null;S.defSucio=true;repintar();ini=pts.size?estado():null;return;}
     if(tenia===1&&!movido&&e.type==='pointerup'){
       const ahora=Date.now();
       if(S.tocar){const r=L.getBoundingClientRect();
@@ -1322,16 +1337,18 @@ function llenarDestino(){
 function pintarCapasEstencil(){
   asegurarEst();
   const inc=S.estIncl,fo=S.estFondo,he=S.herr;
-  S.estIncl=S.vis.slice();S.estFondo=S.verImg?'img':'blanco';if(S.herr==='alinear')S.herr='ver';
+  S.estIncl=S.vis.slice();S.estFondo=S.verImg?'img':'blanco';if(S.defSucio){S.defSucio=false;actualizarMascaraGem();}if(S.herr==='alinear'||S.herr==='deformar')S.herr='ver';
   try{pintarEstencil();}finally{S.estIncl=inc;S.estFondo=fo;S.herr=he;}
   $('#paso').textContent=`Capa ${S.actual+1} de ${S.N}`;
   $$('.cap').forEach((el,k)=>{el.classList.toggle('vis',!!S.vis[k]);el.classList.toggle('off',!S.vis[k]);el.classList.toggle('act',k===S.actual);});
 }
 function pintarEstencil(){
-  if(S.herr==='alinear'&&S.gem){const cv=$('#cv'),x=cv.getContext('2d');
+  if((S.herr==='alinear'||S.herr==='deformar')&&S.gem){const cv=$('#cv'),x=cv.getContext('2d');
     const im=x.createImageData(S.W,S.H),d=im.data;for(let i=0,j=0;i<S.gris.length;i++,j+=4){d[j]=d[j+1]=d[j+2]=S.gris[i];d[j+3]=255;}
     x.putImageData(im,0,0);x.globalAlpha=.85;const t=lienzoTemp('alin',S.W,S.H);dibujarGem(t.getContext('2d'));
-    x.drawImage(teñir(t,'#1e6bff','alinT'),0,0);x.globalAlpha=1;return;}
+    x.drawImage(teñir(t,'#1e6bff','alinT'),0,0);x.globalAlpha=1;
+    if(S.herr==='deformar'&&S.defCursor){x.save();x.strokeStyle='#ff3b6b';x.lineWidth=Math.max(1.5,2/V.s);x.setLineDash([6/V.s,5/V.s]);x.beginPath();x.arc(S.defCursor[0],S.defCursor[1],S.defTam,0,2*Math.PI);x.stroke();x.restore();}
+    return;}
   if($('#estCapas').children.length!==S.N)dibujarEstCapas();
   const cv=$('#cv'),x=cv.getContext('2d'),{W,H,gris}=S;
   const im=x.createImageData(W,H),d=im.data,kImg=S.estFondo==='img'?S.opImg:0;
@@ -1364,12 +1381,12 @@ $('#rSens').oninput=e=>{S.sens=+e.target.value;$('#vSens').textContent=S.sens;re
 $('#rZona').oninput=e=>{S.zona=+e.target.value;$('#vZona').textContent=S.zona;reEst();};
 $('#cLineas').onchange=e=>{S.conLineas=e.target.checked;pintar();};
 seg('#segTinta',v=>{S.tinta=v;if(S.herr==='alinear')elegirHerr('ver');dibujarEstCapas();pintar();});
-seg('#segHerr',v=>{ if(v==='alinear'&&!S.gem){aviso('Primero importa las líneas de Gemini',2500);elegirHerr('ver');return;}
+seg('#segHerr',v=>{ if((v==='alinear'||v==='deformar')&&!S.gem){aviso('Primero importa las líneas de Gemini',2500);elegirHerr('ver');return;}
   elegirHerr(v);
-  aviso(v==='lapiz'?'Un dedo dibuja · dos dedos mueven':v==='borrar'?'Un dedo borra · dos dedos mueven':v==='alinear'?'Un dedo mueve · dos dedos agrandan y giran':'',2500);});
+  aviso(v==='lapiz'?'Un dedo dibuja · dos dedos mueven':v==='borrar'?'Un dedo borra · dos dedos mueven':v==='alinear'?'Un dedo mueve · dos dedos agrandan y giran':v==='deformar'?'Arrastra con un dedo para empujar las líneas · dos dedos mueven la vista':'',2500);});
 $('#selDestino').onchange=e=>{S.destino=e.target.value==='lineas'?'lineas':+e.target.value;};
 $('#rPincel').oninput=e=>{S.pincel=+e.target.value;$('#vPincel').textContent=S.pincel;};
-$('#bEditDeshacer').onclick=()=>{if(S.edits.length){S.edits.pop();pintar();}};
+$('#bEditDeshacer').onclick=()=>{if(S.herr==='deformar'){deshacerDef();return;}if(S.edits.length){S.edits.pop();pintar();}};
 $('#rGrosor').oninput=e=>{S.grosor=+e.target.value;$('#vGrosor').textContent=S.grosor;S.gemCache=null;reEst(true);};
 $('#bEstGuardar').onclick=()=>$('#menuE').classList.remove('hide');
 $('#menuE').onclick=e=>{ if(e.target.id==='menuE')$('#menuE').classList.add('hide'); };
@@ -1500,7 +1517,7 @@ function importarGemini(img){
   S.gem={cv:c,w,h,cx:S.W/2,cy:S.H/2,s,r:0,ini:{cx:S.W/2,cy:S.H/2,s,r:0},mask:M,esq:null,cvs:{}};
   $('#filaGemGros').style.display='flex';$('#filaGemRell').style.display='flex';$('#filaAyuda').style.display='flex';S.fusion=null;
   S.fuente='gemini'; S.lineasCv=null;
-  $('#filaFuente').style.display='flex';$('#bAlinear').style.display='';
+  $('#filaFuente').style.display='flex';$('#bAlinear').style.display='';$('#bDeformar').style.display='';
   $$('#segFuente button').forEach(b=>b.classList.toggle('on',b.dataset.v==='gemini'));
   if(!S.conLineas){S.conLineas=true;$('#cLineas').checked=true;}
   elegirHerr('alinear');
@@ -1521,17 +1538,59 @@ setTimeout(()=>ponerSinBloques(S.sinBloques,true),0);
 $('#rOpLin').oninput=e=>{S.opLineas=+e.target.value/100;$('#vOpLin').textContent=e.target.value+'%';
   clearTimeout(tEst);tEst=setTimeout(pintar,60);};
 seg('#segFuente',v=>{S.fuente=v;if(S.herr==='alinear')elegirHerr('ver');pintar();});
-$('#bAlinReset').onclick=()=>{if(S.gem){Object.assign(S.gem,S.gem.ini);pintar();}};
+$('#bAlinReset').onclick=()=>{if(!S.gem)return;
+  if(S.herr==='deformar'){if(S.gem.cvOrig){S.gem.cv.getContext('2d').clearRect(0,0,S.gem.w,S.gem.h);S.gem.cv.getContext('2d').drawImage(S.gem.cvOrig,0,0);S.defHist=[];S.defSucio=true;aviso('Deformación quitada',1800);}pintar();return;}
+  Object.assign(S.gem,S.gem.ini);pintar();};
 $('#bGirIzq').onclick=()=>aviso(girarImagen('izq'),1800);$('#bGirDer').onclick=()=>aviso(girarImagen('der'),1800);
 $('#bGir180').onclick=()=>aviso(girarImagen('180'),1800);$('#bEspejo').onclick=()=>aviso(girarImagen('espejo'),1800);
 $('#bAlinListo').onclick=()=>{S.herr='ver';ocupado(()=>elegirHerr('ver'));};
 function elegirHerr(v){
   S.herr=v; $$('#segHerr button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#filaEdit').style.display=v==='lapiz'||v==='borrar'?'flex':'none';
-  $('#filaAlin').style.display=v==='alinear'?'flex':'none';
+  $('#filaAlin').style.display=v==='alinear'||v==='deformar'?'flex':'none';
+  $('#filaDef').style.display=v==='deformar'?'flex':'none';
+  if(v!=='deformar'){S.defCursor=null;if(S.defSucio){S.defSucio=false;actualizarMascaraGem();}}
   if(v==='alinear')mostrarAlin(true);else mostrarAlin(false);
+  if(v==='deformar')mostrarDef(true);
   pintar();
 }
+/* ---------- Deformar (empujar las líneas importadas con el dedo, como "Deformar" de PicsArt) ---------- */
+S.defTam=90;S.defFuerza=.6;S.defHist=[];S.defCursor=null;S.defSucio=false;
+$('#rDefTam').oninput=e=>{S.defTam=+e.target.value;$('#vDefTam').textContent=e.target.value;pintar();};
+$('#rDefFuerza').oninput=e=>{S.defFuerza=+e.target.value/100;$('#vDefFuerza').textContent=e.target.value+'%';};
+function mostrarDef(on){const a=$('#aviso');clearTimeout(tAviso);
+  if(on){a.textContent='Deformando líneas · arrastra para empujar · toca Listo al terminar';a.classList.remove('hide');}else a.classList.add('hide');}
+function aGemPunto(p){const G=S.gem,dx=p[0]-G.cx,dy=p[1]-G.cy,c=Math.cos(-G.r),s=Math.sin(-G.r);
+  return [(dx*c-dy*s)/(G.s*(G.fx?-1:1))+G.w/2,(dx*s+dy*c)/G.s+G.h/2];}
+function guardarDef(){const G=S.gem;if(!G.cvOrig){const o=document.createElement('canvas');o.width=G.w;o.height=G.h;o.getContext('2d').drawImage(G.cv,0,0);G.cvOrig=o;}
+  S.defHist.push(G.cv.getContext('2d').getImageData(0,0,G.w,G.h));if(S.defHist.length>8)S.defHist.shift();}
+function deshacerDef(silencio){const G=S.gem,h=S.defHist.pop();if(!G||!h){if(!silencio)aviso('Nada que deshacer',1500);return;}
+  G.cv.getContext('2d').putImageData(h,0,0);S.defSucio=true;pintar();}
+function deformarGem(a,b){
+  const G=S.gem,A=aGemPunto(a),B=aGemPunto(b),R=Math.max(3,S.defTam/G.s);
+  const dx=B[0]-A[0],dy=B[1]-A[1],dist=Math.hypot(dx,dy);if(!dist)return;
+  const pasos=Math.max(1,Math.ceil(dist/(R*.2)));
+  for(let i=1;i<=pasos;i++)empujar(A[0]+dx*i/pasos,A[1]+dy*i/pasos,dx/pasos,dy/pasos,R,S.defFuerza);
+}
+function empujar(cx,cy,dx,dy,R,k){
+  const G=S.gem,m=Math.ceil(Math.hypot(dx,dy))+2;
+  const x0=Math.max(0,Math.floor(cx-R-m)),y0=Math.max(0,Math.floor(cy-R-m)),x1=Math.min(G.w,Math.ceil(cx+R+m)),y1=Math.min(G.h,Math.ceil(cy+R+m));
+  const w=x1-x0,h=y1-y0;if(w<=0||h<=0)return;
+  const ctx=G.cv.getContext('2d'),im=ctx.getImageData(x0,y0,w,h),d=im.data,src=new Uint8ClampedArray(w*h);
+  for(let i=0,j=3;i<src.length;i++,j+=4)src[i]=d[j];
+  const R2=R*R;
+  for(let y=0;y<h;y++){const qy=y+y0+.5-cy;
+    for(let x=0;x<w;x++){const qx=x+x0+.5-cx,r2=qx*qx+qy*qy;if(r2>=R2)continue;
+      const t=1-r2/R2,f=k*t*t,sx=x-dx*f,sy=y-dy*f;
+      const ix=Math.floor(sx),iy=Math.floor(sy),fx=sx-ix,fy=sy-iy;
+      const g=(xx,yy)=>xx<0||yy<0||xx>=w||yy>=h?0:src[yy*w+xx];
+      const v=(g(ix,iy)*(1-fx)+g(ix+1,iy)*fx)*(1-fy)+(g(ix,iy+1)*(1-fx)+g(ix+1,iy+1)*fx)*fy;
+      d[(y*w+x)*4+3]=v;}}
+  ctx.putImageData(im,x0,y0);
+}
+function actualizarMascaraGem(){const G=S.gem;if(!G)return;const d=G.cv.getContext('2d').getImageData(0,0,G.w,G.h).data;
+  for(let i=0,j=3;i<G.mask.length;i++,j+=4)G.mask[i]=d[j]>60?1:0;G.rellCv=null;limpiarGemCvs();S.fusion=null;S.lineasCv=null;}
+
 function mostrarAlin(on){const a=$('#aviso');clearTimeout(tAviso);
   if(on){a.textContent='Alineando líneas de Gemini · toca Listo al terminar';a.classList.remove('hide');}else a.classList.add('hide');}
 function dibujarGem(ctx,fuente){
@@ -2044,6 +2103,7 @@ function vozEstencil(t,h){
   // --- herramientas y guardar ---
   if(has('lapiz','dibujar','modo dibujo','pintar')){marcarSeg('#segHerr','lapiz');return 'Lápiz';}
   if(has('borrador','modo borrar','goma')){marcarSeg('#segHerr','borrar');return 'Borrador';}
+  if(has('deformar','deformación','empujar líneas')){if(!S.gem)return 'Primero importa las líneas de Gemini';marcarSeg('#segHerr','deformar');return 'Deformar';}
   if(has('modo mover','mano','herramienta mover')){marcarSeg('#segHerr','ver');return 'Mover';}
   if(pre('guard')&&!has('no')){$('#bEstGuardar').click();return 'Guardar esténcil';}
   return null;
