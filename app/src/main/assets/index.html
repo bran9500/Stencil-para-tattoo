@@ -144,6 +144,7 @@ body.inmersivo #bPantalla{opacity:.55}
   <div id="top">
     <button id="bVolver">‹ Inicio</button>
     <div class="t" id="titulo">Capas</div>
+    <button id="bEspejoTop" title="Poner en espejo">⇋</button>
     <button id="bProy" title="Guardar proyecto">💾</button>
     <button id="bMic" title="Comandos de voz">🎤</button>
     <button id="bGuardar">Guardar</button>
@@ -578,7 +579,8 @@ function cargarURL(url,fin,tol){
 }
 
 function prepararImagen(img,tol,rest){
-  S.proyId=rest?rest.id:null;
+  if(S.gris&&typeof autoGuardar==='function')try{autoGuardar();}catch(_){}
+  S.proyId=rest?rest.id:null;S.proyDefN=0;
   S.tolFondo=tol||0;$('#rFondo').value=S.tolFondo;$('#vFondo').textContent=S.tolFondo;
   let w=img.naturalWidth,h=img.naturalHeight,mx=Math.max(w,h),k=rest?1:mx<1400?Math.min(1600/mx,3):Math.min(1,MAXLADO/mx);
   w=Math.round(w*k);h=Math.round(h*k);
@@ -615,6 +617,7 @@ function girarImagen(modo){ // 'der' 90° a la derecha, 'izq' 90° a la izquierd
   if(typeof HIST!=='undefined')HIST.length=0;
   const cv=$('#cv');cv.width=W2;cv.height=H2;ajustarVista();
   ocupado(()=>{calcFondo();calcCapas();pintar();});
+  S.proyDefN=(S.proyDefN||0)+1; setTimeout(()=>{if(typeof autoGuardar==='function')autoGuardar();},800);
   return modo==='espejo'?'Imagen en espejo':modo==='180'?'Imagen de cabeza':modo==='der'?'Girada a la derecha':'Girada a la izquierda';
 }
 function desenfocar(g,w,h,r){ // caja separable
@@ -2893,6 +2896,7 @@ window.alPausar=autoGuardar;
 document.addEventListener('visibilitychange',()=>{if(document.hidden)autoGuardar();});
 setInterval(autoGuardar,120000);
 $('#bProy').onclick=()=>guardarProyecto(false);
+$('#bEspejoTop').onclick=()=>aviso(girarImagen('espejo'),1800);
 {const vol=$('#bVolver').onclick;$('#bVolver').onclick=e=>{autoGuardar();vol(e);pintarListaProy();};}
 pintarListaProy();
 // al abrir la app, retoma el último proyecto donde lo dejaste
