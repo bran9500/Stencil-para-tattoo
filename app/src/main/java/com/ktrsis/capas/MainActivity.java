@@ -293,7 +293,7 @@ public class MainActivity extends Activity {
         else { Toast.makeText(this, "Sin permiso de micrófono no puedo escuchar comandos", Toast.LENGTH_LONG).show(); js("window.vozEstado&&vozEstado('off')"); }
     }
 
-    @Override protected void onPause() { super.onPause(); if (escuchando) detenerVoz(); }
+    @Override protected void onPause() { super.onPause(); if (paginaLista) js("window.alPausar&&alPausar()"); if (escuchando) detenerVoz(); }
     @Override protected void onResume() { super.onResume(); if (paginaLista) js("window.alVolver&&alVolver()"); }
     @Override protected void onDestroy() { super.onDestroy(); if (reconocedor != null) reconocedor.destroy(); if (tts != null) tts.shutdown(); }
 
@@ -528,6 +528,53 @@ public class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
                 catch (Exception e) { Toast.makeText(MainActivity.this, "No se pudo abrir", Toast.LENGTH_SHORT).show(); }
             });
+        }
+
+        // ---- Proyectos guardados (archivos privados de la app: proyectos/<id>.json + <id>.meta) ----
+        private File dirProyectos() { File d = new File(getFilesDir(), "proyectos"); if (!d.exists()) d.mkdirs(); return d; }
+        private String idSeguro(String id) { return id == null ? "x" : id.replaceAll("[^A-Za-z0-9_-]", ""); }
+        private void escribirTexto(File f, String t) throws java.io.IOException {
+            File tmp = new File(f.getPath() + ".tmp");
+            try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(t.getBytes(java.nio.charset.StandardCharsets.UTF_8)); o.getFD().sync(); }
+            if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f); }
+        }
+        private String leerTexto(File f) {
+            if (!f.exists()) return "";
+            try { return new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (Exception e) { return ""; }
+        }
+
+        @JavascriptInterface
+        public boolean guardarProyecto(String id, String json, String meta) {
+            try {
+                String k = idSeguro(id);
+                escribirTexto(new File(dirProyectos(), k + ".json"), json);
+                escribirTexto(new File(dirProyectos(), k + ".meta"), meta);
+                return true;
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public String cargarProyecto(String id) { return leerTexto(new File(dirProyectos(), idSeguro(id) + ".json")); }
+
+        @JavascriptInterface
+        public String listarProyectos() {
+            StringBuilder b = new StringBuilder("[");
+            File[] fs = dirProyectos().listFiles((d, n) -> n.endsWith(".meta"));
+            if (fs != null) for (File f : fs) {
+                String m = leerTexto(f).trim();
+                if (m.isEmpty()) continue;
+                if (b.length() > 1) b.append(',');
+                b.append(m);
+            }
+            return b.append(']').toString();
+        }
+
+        @JavascriptInterface
+        public void borrarProyecto(String id) {
+            String k = idSeguro(id);
+            new File(dirProyectos(), k + ".json").delete();
+            new File(dirProyectos(), k + ".meta").delete();
         }
 
         /** Guarda cualquier archivo (por ejemplo el PSD) en Descargas › Capas y abre el menú para compartirlo. */

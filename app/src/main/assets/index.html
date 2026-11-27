@@ -25,6 +25,9 @@ button.pri{background:var(--acc);color:#1a1408;border-color:var(--acc)}
 #inicio{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:28px;gap:14px}
 #inicio h1{margin:0 0 2px;font-size:34px;letter-spacing:-.5px}
 #inicio p{margin:0 0 18px;color:var(--mut)}
+#listaProy{width:100%;max-width:420px;margin-top:18px}
+#listaProy h4{margin:6px 0;color:var(--mut);font-weight:600}
+.proy{display:flex;gap:6px;margin:6px 0}.proy button{flex:1;text-align:left}.proy .x{flex:0 0 auto;text-align:center}
 .logo{display:flex;gap:6px;margin-bottom:14px}
 .logo i{display:block;width:22px;border-radius:5px}
 
@@ -134,12 +137,14 @@ body.inmersivo #bPantalla{opacity:.55}
   <button class="big pri" id="bAbrir">Abrir imagen</button>
   <button class="big" id="bEjemplo">Probar con el cráneo de ejemplo</button>
   <input type="file" id="archivo" accept="image/*" class="hide">
+  <div id="listaProy"></div>
 </section>
 
 <section id="editor" class="hide">
   <div id="top">
     <button id="bVolver">‹ Inicio</button>
     <div class="t" id="titulo">Capas</div>
+    <button id="bProy" title="Guardar proyecto">💾</button>
     <button id="bMic" title="Comandos de voz">🎤</button>
     <button id="bGuardar">Guardar</button>
   </div>
@@ -572,9 +577,10 @@ function cargarURL(url,fin,tol){
   img.src=url;
 }
 
-function prepararImagen(img,tol){
+function prepararImagen(img,tol,rest){
+  S.proyId=rest?rest.id:null;
   S.tolFondo=tol||0;$('#rFondo').value=S.tolFondo;$('#vFondo').textContent=S.tolFondo;
-  let w=img.naturalWidth,h=img.naturalHeight,mx=Math.max(w,h),k=mx<1400?Math.min(1600/mx,3):Math.min(1,MAXLADO/mx);
+  let w=img.naturalWidth,h=img.naturalHeight,mx=Math.max(w,h),k=rest?1:mx<1400?Math.min(1600/mx,3):Math.min(1,MAXLADO/mx);
   w=Math.round(w*k);h=Math.round(h*k);
   const c=document.createElement('canvas');c.width=w;c.height=h;
   const x=c.getContext('2d',{willReadFrequently:true});
@@ -587,7 +593,7 @@ function prepararImagen(img,tol){
   $('#inicio').classList.add('hide');$('#editor').classList.remove('hide');
   $('#titulo').textContent=S.nombre;
   ajustarVista();
-  ocupado(()=>{calcFondo();calcCapas();S.vis=S.vis.map((_,i)=>i===0);pintar();
+  ocupado(()=>{if(rest)rest.antes();calcFondo();calcCapas();S.vis=S.vis.map((_,i)=>i===0);if(rest)rest.despues();pintar();
     if(typeof VOZ!=='undefined'&&VOZ.auto&&!VOZ.on)setTimeout(()=>prenderVoz(true),400);
     try{if(localStorage.getItem('inmersivo'))pantallaCompleta(true);}catch(_){} });
 }
@@ -1451,38 +1457,51 @@ let PROMPT_ACTUAL=PROMPT_GEMINI;
 $('#bPrompt').onclick=()=>{$('#txtPrompt').value=PROMPT_ACTUAL;$('#menuP').classList.remove('hide');
   if(PROMPT_ACTUAL===PROMPT_GEMINI&&S.W&&listoProv('gemini'))personalizarPrompt();};
 function imagenParaIA(){ // la imagen en gris, a 1024 px, como JPG
-  const M=1024,k=Math.min(1,M/Math.max(S.W,S.H)),w=Math.round(S.W*k),h=Math.round(S.H*k);
+  const M=768,k=Math.min(1,M/Math.max(S.W,S.H)),w=Math.round(S.W*k),h=Math.round(S.H*k);
   const a=lienzoTemp('iaSrc',S.W,S.H),xa=a.getContext('2d'),im=xa.createImageData(S.W,S.H),d=im.data;
   for(let i=0,j=0;i<S.gris.length;i++,j+=4){d[j]=d[j+1]=d[j+2]=S.gris[i];d[j+3]=255;}xa.putImageData(im,0,0);
   const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(a,0,0,w,h);
-  return c.toDataURL('image/jpeg',.85);
+  return c.toDataURL('image/jpeg',.8);
 }
 function personalizarPrompt(){
   if(!S.W){aviso('Primero abre el diseño',2500);return;}
   if(!listoProv('gemini')){aviso('Para personalizarlo necesito tu clave de Gemini (🎤 › Inteligencia). Mientras, usa el prompt general.',4500);return;}
   const b=$('#bPersonalizar');b.disabled=true;b.textContent='✨ Mirando la imagen…';
   $('#txtPrompt').value='Gemini está mirando tu imagen para escribir un prompt solo para ella…';
-  const desc=($('#txtDescP').value||'').trim();
-  const ir=(modelos,i)=>{
+  const desc=($('#txtDescP').value||'').trim(), img64=imagenParaIA(), t0=Date.now();
+  const reloj=setInterval(()=>{b.textContent='✨ Mirando la imagen… '+Math.round((Date.now()-t0)/1000)+' s';},1000);
+  let fin=false;
+  // sinPensar: le pedimos a Gemini que no "piense" antes de responder (es mucho más rápido);
+  // si un modelo no acepta esa opción, se vuelve a probar el mismo modelo sin ella.
+  const ir=(modelos,i,sinPensar=true)=>{
+    if(fin)return;
     const modelo=modelos[i];
     if(!modelo){terminar(null,'No pude personalizar el prompt. Uso el general.');return;}
-    const cuerpo={model:modelo,max_tokens:900,temperature:.4,messages:[{role:'user',content:[
+    const cuerpo={model:modelo,max_tokens:700,temperature:.4,messages:[{role:'user',content:[
       {type:'text',text:META_PROMPT+(desc?`\n\nThe artist describes the image like this (in Spanish): "${desc}"`:'')},
-      {type:'image_url',image_url:{url:imagenParaIA()}}]}]};
+      {type:'image_url',image_url:{url:img64}}]}]};
+    if(sinPensar)cuerpo.reasoning_effort='none';
+    let listo=false;
+    const corte=setTimeout(()=>{if(listo||fin)return;listo=true;logD('✨ prompt: '+modelo+' tardó demasiado, pruebo otro');ir(modelos,i+1);},25000);
     httpIA(PROV.gemini.base+'/chat/completions',{'Authorization':'Bearer '+claveDe('gemini')},cuerpo,(cod,txt)=>{
+      if(listo||fin)return;listo=true;clearTimeout(corte);
       let t='';try{const j=JSON.parse(txt);t=((j.choices||[])[0]||{}).message?.content||'';}catch(_){}
-      if(cod===200&&/WHAT TO TRACE/i.test(t)&&/SHADOW ZONES/i.test(t)){terminar(t.trim().replace(/^```[a-z]*\s*|```\s*$/g,''));return;}
+      if(cod===200&&/WHAT TO TRACE/i.test(t)&&/SHADOW ZONES/i.test(t)){
+        try{localStorage.setItem('modeloPrompt',modelo);}catch(_){}
+        terminar(t.trim().replace(/^```[a-z]*\s*|```\s*$/g,''));return;}
       logD('✨ prompt: '+modelo+' → '+cod+' '+String(txt).slice(0,120));
+      if(sinPensar&&cod===400&&/reason|think/i.test(txt)){ir(modelos,i,false);return;}
       if(cod===429&&/quota|per day|exhausted/i.test(txt)&&i+1>=modelos.length){terminar(null,'Se acabó el cupo gratis de Gemini por hoy. Uso el prompt general.');return;}
       ir(modelos,i+1);});
   };
-  const terminar=(t,err)=>{b.disabled=false;b.textContent='✨ Personalizar otra vez';
+  const terminar=(t,err)=>{if(fin)return;fin=true;clearInterval(reloj);b.disabled=false;b.textContent='✨ Personalizar otra vez';
     PROMPT_ACTUAL=t?PROMPT_REGLAS+'\n\n'+t+'\n\n'+PROMPT_FINAL:PROMPT_GEMINI;$('#txtPrompt').value=PROMPT_ACTUAL;
-    aviso(t?'Prompt personalizado listo: cópialo y pégalo en Gemini con tu imagen':err,3500);};
+    aviso(t?'Prompt personalizado listo en '+Math.round((Date.now()-t0)/1000)+' s: cópialo y pégalo en Gemini con tu imagen':err,3500);};
+  let rapido='';try{rapido=localStorage.getItem('modeloPrompt')||'';}catch(_){}
   const lista=()=>{const al=((IA.alternosDe||{}).gemini||[]);const m=modeloDe('gemini');
-    // para mirar imágenes es mejor un Flash normal que el Lite
-    const orden=[...al.filter(x=>!/lite/.test(x)),...al.filter(x=>/lite/.test(x))];return [...new Set([...orden,m].filter(Boolean))].slice(0,4);};
-  if(((IA.alternosDe||{}).gemini||[]).length)ir(lista(),0);
+    // primero el modelo que la última vez respondió bien; para mirar imágenes es mejor un Flash normal que el Lite
+    const orden=[...al.filter(x=>!/lite/.test(x)),...al.filter(x=>/lite/.test(x))];return [...new Set([rapido,...orden,m].filter(Boolean))].slice(0,3);};
+  if(((IA.alternosDe||{}).gemini||[]).length||rapido)ir(lista(),0);
   else elegirModelo(ok=>ok?ir(lista(),0):terminar(null,'No pude conectar con Gemini. Uso el prompt general.'),'gemini',true);
 }
 $('#bPersonalizar').onclick=personalizarPrompt;
@@ -2765,6 +2784,120 @@ function guardarPSD(){
     }
   });
 }
+
+/* ---------- Proyectos guardados: abrir el trabajo tal como quedó ---------- */
+// Se guarda la imagen ya preparada (gris), las capas, los cortes, los retoques a mano,
+// las líneas de Gemini con su alineación y deformación, la vista y el prompt personalizado.
+// En la tablet se guarda en archivos de la app (Android.guardarProyecto); en el navegador, en localStorage.
+const PROY={ultimaHuella:'', temporizador:null};
+const proyNativo=()=>!!(window.Android&&Android.guardarProyecto);
+function proyEscribir(id,json,meta){
+  if(proyNativo())return Android.guardarProyecto(id,json,JSON.stringify(meta));
+  try{localStorage.setItem('proy_'+id,json);const L=proyListar().filter(m=>m.id!==id);L.push(meta);localStorage.setItem('proyLista',JSON.stringify(L));return true;}
+  catch(_){return false;}
+}
+function proyLeer(id){
+  if(proyNativo())return Android.cargarProyecto(id)||'';
+  try{return localStorage.getItem('proy_'+id)||'';}catch(_){return '';}
+}
+function proyListar(){
+  let L=[];
+  try{L=JSON.parse(proyNativo()?(Android.listarProyectos()||'[]'):(localStorage.getItem('proyLista')||'[]'));}catch(_){}
+  return L.sort((a,b)=>b.fecha-a.fecha);
+}
+function proyBorrar(id){
+  if(proyNativo()){Android.borrarProyecto(id);return;}
+  try{localStorage.removeItem('proy_'+id);localStorage.setItem('proyLista',JSON.stringify(proyListar().filter(m=>m.id!==id)));}catch(_){}
+}
+function lienzoAPng(cv){return cv.toDataURL('image/png');}
+function grisAPng(){
+  const c=document.createElement('canvas');c.width=S.W;c.height=S.H;const x=c.getContext('2d'),im=x.createImageData(S.W,S.H),d=im.data;
+  for(let i=0,j=0;i<S.gris.length;i++,j+=4){d[j]=d[j+1]=d[j+2]=S.gris[i];d[j+3]=255;}
+  x.putImageData(im,0,0);return c.toDataURL('image/png');
+}
+// huella barata para saber si algo cambió desde el último guardado
+function proyHuella(){
+  if(!S.gris)return '';
+  const G=S.gem;
+  return JSON.stringify([fotoEstado(),S.N,S.rep,S.piel,S.cortes,S.cortesManual,(S.huecos||[]).length,(S.edits||[]).length,
+    (S.edits||[]).reduce((n,e)=>n+e.pts.length,0),S.ayuda,PROMPT_ACTUAL.length,S.W,S.H,
+    G?[G.cx,G.cy,G.s,G.r,G.fx,(S.defHist||[]).length,S.defSucio]:0,S.proyDefN||0]);
+}
+function guardarProyecto(silencio){
+  if(!S.gris)return false;
+  if(!S.proyId)S.proyId=Date.now().toString(36);
+  const G=S.gem;
+  const p={v:1,id:S.proyId,nombre:S.nombre,fecha:Date.now(),W:S.W,H:S.H,gris:grisAPng(),
+    tolFondo:S.tolFondo,N:S.N,rep:S.rep,piel:S.piel,cortes:S.cortes.slice(),cortesManual:S.cortesManual,
+    huecos:(S.huecos||[]).slice(),edits:S.edits||[],foto:fotoEstado(),ayuda:S.ayuda,
+    prompt:PROMPT_ACTUAL===PROMPT_GEMINI?'':PROMPT_ACTUAL,desc:($('#txtDescP').value||''),
+    gem:G?{cv:lienzoAPng(G.cv),orig:G.cvOrig?lienzoAPng(G.cvOrig):'',w:G.w,h:G.h,cx:G.cx,cy:G.cy,s:G.s,r:G.r,fx:!!G.fx,ini:G.ini}:null};
+  const meta={id:p.id,nombre:p.nombre,fecha:p.fecha};
+  let ok=false;try{ok=proyEscribir(p.id,JSON.stringify(p),meta);}catch(e){logD('💾 '+e);}
+  if(ok){PROY.ultimaHuella=proyHuella();try{localStorage.setItem('proyUltimo',p.id);}catch(_){}}
+  if(!silencio)aviso(ok?'Proyecto guardado: se abrirá así la próxima vez':'No pude guardar el proyecto',2500);
+  return ok;
+}
+function cargarImg(src){return new Promise((ok,mal)=>{if(!src){ok(null);return;}const i=new Image();i.onload=()=>ok(i);i.onerror=mal;i.src=src;});}
+function abrirProyecto(id){
+  let p=null;try{p=JSON.parse(proyLeer(id));}catch(_){}
+  if(!p||!p.gris){aviso('No pude abrir ese proyecto',2500);return;}
+  Promise.all([cargarImg(p.gris),cargarImg(p.gem&&p.gem.cv),cargarImg(p.gem&&p.gem.orig)]).then(([img,gImg,oImg])=>{
+    S.nombre=p.nombre||'diseño';
+    prepararImagen(img,p.tolFondo,{id:p.id,
+      antes(){
+        Object.assign(S,{N:p.N,rep:p.rep,piel:p.piel,cortes:(p.cortes||[]).slice(),cortesManual:!!p.cortesManual,huecos:(p.huecos||[]).slice(),edits:p.edits||[]});
+        $$('#segN button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S.N));
+        $$('#segRep button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.rep));
+        $('#rPiel').value=S.piel;$('#vPiel').textContent=S.piel;
+      },
+      despues(){
+        if(p.ayuda!=null){S.ayuda=p.ayuda;$('#rAyuda').value=S.ayuda;$('#vAyuda').textContent=S.ayuda+'%';}
+        if(p.gem&&gImg){
+          const q=p.gem,c=document.createElement('canvas');c.width=q.w;c.height=q.h;const x=c.getContext('2d');x.drawImage(gImg,0,0);
+          const d=x.getImageData(0,0,q.w,q.h).data,M=new Uint8Array(q.w*q.h);for(let i=0,j=3;i<M.length;i++,j+=4)M[i]=d[j]>60?1:0;
+          S.gem={cv:c,w:q.w,h:q.h,cx:q.cx,cy:q.cy,s:q.s,r:q.r,fx:q.fx,ini:q.ini,mask:M,esq:null,cvs:{}};
+          if(oImg){const o=document.createElement('canvas');o.width=q.w;o.height=q.h;o.getContext('2d').drawImage(oImg,0,0);S.gem.cvOrig=o;}
+          $('#filaGemGros').style.display='flex';$('#filaGemRell').style.display='flex';$('#filaAyuda').style.display='flex';
+          $('#filaFuente').style.display='flex';$('#bAlinear').style.display='';$('#bDeformar').style.display='';
+        }
+        PROMPT_ACTUAL=p.prompt||PROMPT_GEMINI;$('#txtDescP').value=p.desc||'';
+        $('#bPersonalizar').textContent=p.prompt?'✨ Personalizar otra vez':'✨ Personalizar para esta imagen';
+        S.fusion=null;S.lineas=null;S.lineasCv=null;
+        if(p.foto){try{volverEstado(p.foto);}catch(e){logD('💾 vista: '+e);}}
+        PROY.ultimaHuella=proyHuella();
+        try{localStorage.setItem('proyUltimo',p.id);}catch(_){}
+        aviso('Proyecto "'+S.nombre+'" abierto tal como lo guardaste',2500);
+      }});
+  }).catch(()=>aviso('No pude abrir ese proyecto',2500));
+}
+function pintarListaProy(){
+  const box=$('#listaProy');if(!box)return;const L=proyListar();
+  box.innerHTML=L.length?'<h4>Proyectos guardados</h4>':'';
+  for(const m of L.slice(0,12)){
+    const f=document.createElement('div');f.className='proy';
+    const b=document.createElement('button');const fe=new Date(m.fecha);
+    b.textContent='▶ '+m.nombre+' · '+fe.toLocaleDateString('es',{day:'numeric',month:'short'})+' '+fe.toLocaleTimeString('es',{hour:'numeric',minute:'2-digit'});
+    b.onclick=()=>abrirProyecto(m.id);
+    const x=document.createElement('button');x.className='x';x.textContent='🗑';
+    x.onclick=()=>{if(confirm('¿Borrar el proyecto "'+m.nombre+'"?')){proyBorrar(m.id);pintarListaProy();}};
+    f.appendChild(b);f.appendChild(x);box.appendChild(f);
+  }
+}
+// guardado automático: al salir de la app, al apagar la pantalla, al volver al inicio y cada 2 minutos si hubo cambios
+function autoGuardar(){
+  if(!S.gris||$('#editor').classList.contains('hide'))return;
+  if(proyHuella()!==PROY.ultimaHuella)guardarProyecto(true);
+}
+window.alPausar=autoGuardar;
+document.addEventListener('visibilitychange',()=>{if(document.hidden)autoGuardar();});
+setInterval(autoGuardar,120000);
+$('#bProy').onclick=()=>guardarProyecto(false);
+{const vol=$('#bVolver').onclick;$('#bVolver').onclick=e=>{autoGuardar();vol(e);pintarListaProy();};}
+pintarListaProy();
+// al abrir la app, retoma el último proyecto donde lo dejaste
+setTimeout(()=>{let u='';try{u=localStorage.getItem('proyUltimo')||'';}catch(_){}
+  if(u&&!S.gris&&proyListar().some(m=>m.id===u))abrirProyecto(u);},300);
 </script>
 </body>
 </html>
